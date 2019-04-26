@@ -48,35 +48,45 @@ class AccountActivity : AppCompatActivity() {
 
 
         signInButton.setOnClickListener { _ ->
-            blockstackSession().redirectUserToSignIn { _ ->
-                Log.d(TAG, "signed in error!")
+            GlobalScope.launch(j2v8Dispatcher) {
+                blockstackSession().redirectUserToSignIn { _ ->
+                    Log.d(TAG, "signed in error!")
+                }
             }
         }
 
         signOutButton.setOnClickListener { _ ->
-            blockstackSession().signUserOut()
-            Log.d(TAG, "signed out!")
+            GlobalScope.launch(j2v8Dispatcher) {
+                blockstackSession().signUserOut()
+                Log.d(TAG, "signed out!")
+            }
             finish()
         }
     }
 
     private fun onLoaded() {
-        signInButton.isEnabled = true
-        signOutButton.isEnabled = true
         val signedIn = blockstackSession().isUserSignedIn()
+        runOnUiThread {
+            signInButton.isEnabled = true
+            signOutButton.isEnabled = true
+            if (signedIn) {
+                signInButton.visibility = View.GONE
+                signOutButton.visibility = View.VISIBLE
+            } else {
+                signInButton.visibility = View.VISIBLE
+                signOutButton.visibility = View.GONE
+            }
+        }
         if (signedIn) {
             Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
-            signInButton.visibility = View.GONE
-            signOutButton.visibility = View.VISIBLE
-        } else {
-            signInButton.visibility = View.VISIBLE
-            signOutButton.visibility = View.GONE
         }
 
     }
 
     private fun onSignIn() {
-        Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
+        GlobalScope.launch(j2v8Dispatcher) {
+            Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
+        }
         finish()
     }
 
@@ -97,7 +107,7 @@ class AccountActivity : AppCompatActivity() {
 
             val authResponse = response.getQueryParameter("authResponse")
             Log.d(TAG, "authResponse: ${authResponse}")
-            blockstackSession().handlePendingSignIn(authResponse, {
+            blockstackSession().handlePendingSignIn(authResponse) {
                 if (it.hasErrors) {
                     Toast.makeText(this, it.error, Toast.LENGTH_SHORT).show()
                 } else {
@@ -106,7 +116,7 @@ class AccountActivity : AppCompatActivity() {
                         onSignIn()
                     }
                 }
-            })
+            }
         }
     }
 

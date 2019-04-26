@@ -42,14 +42,16 @@ import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
 import java.lang.String.format
 import java.net.MalformedURLException
+import java.text.DateFormat
 import java.text.ParseException
+import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 val blockstackConfig = "https://cal.openintents.org".toBlockstackConfig(arrayOf(Scope.StoreWrite), redirectPath = "/")
-val j2v8Dispatcher = newSingleThreadContext("j2v8")
+val j2v8Dispatcher = newSingleThreadContext("j2v8Dispatcher")
 fun executorFactory(context: Context): Executor {
     return object : Executor {
         override fun onMainThread(function: (Context) -> Unit) {
@@ -137,13 +139,17 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         provider: ContentProviderClient, syncResult: SyncResult
     ) {
 
-        Log.i(TAG, "Beginning network synchronization " + extras + " " + authority)
+        Log.i(TAG, "Beginning network synchronization $extras $authority")
         GlobalScope.launch(j2v8Dispatcher) {
-            if (extras.getString("feed") != null) {
+            val feed = extras.getString("feed")
+            if (feed != null) {
                 if (extras.getBoolean("upload")) {
 
                 } else {
-                    fetchEvents(extras.getString("feed"))
+                    val result = fetchEvents(feed, syncResult)
+                    if (result != null) {
+                        updateLocalEvents(result, account, syncResult)
+                    }
                 }
             } else {
                 val calendars = fetchCalendars(syncResult)
@@ -151,34 +157,72 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                     updateLocalCalendarList(calendars, account, syncResult)
                 }
             }
-            Log.i(TAG, "Network synchronization complete")
+            Log.i(TAG, "Network synchronization complete $extras")
         }
     }
 
-    suspend fun fetchEvents(id: String, syncResult: SyncResult) {
+    suspend fun fetchEvents(uid: String, syncResult: SyncResult): JSONObject? {
         try {
             if (mBlockstackSession.isUserSignedIn()) {
-                val calendars = suspendCoroutine<JSONArray> { cont ->
+                var c = mContentResolver.query(
+                    CalendarContract.Calendars.CONTENT_URI,
+                    CALENDAR_PROJECTION,
+                    "${CalendarContract.Calendars.CAL_SYNC1} = ?",
+                    arrayOf(uid),
+                    null
+                )
+                if (c == null || !c.moveToFirst()) {
+                    Log.e(TAG, "User not logged in")
+                    syncResult.databaseError = true
+                    if (c != null) {
+                        c.close()
+                    }
+                    return null
+                }
+
+                val type = c.getString(COLUMN_TYPE)
+                val data = JSONObject(c.getString(COLUMN_DATA))
+                val calendarId = c.getString(COLUMN_ID)
+                c.close()
+
+                val events = suspendCoroutine<JSONObject> { cont ->
                     val callback: (Result<Any>) -> Unit = {
                         if (it.hasValue) {
-
-                            val calendarsAsString = it.value as String
-                            val calendars = JSONArray(calendarsAsString)
-                            for (i in 0 until calendars.length()) {
-                                val calendar = calendars.getJSONObject(i)
-                                Log.d(TAG, calendar.toString())
-                            }
-                            cont.resume(calendars)
+                            val eventsAsString = it.value as String
+                            val events = JSONObject(eventsAsString)
+                            cont.resume(events)
                         } else {
-                            Log.e(TAG, "Failed to fetch calendars: " + it.error)
+                            Log.e(TAG, "Failed to fetch events: " + it.error)
                             cont.resumeWithException(IOException(it.error))
                         }
                     }
+                    when (type) {
+                        "private" -> {
 
-                    mBlockstackSession.getFile("Calendars", GetFileOptions(), callback)
+                            val path = data.optString("src")
+                            Log.d(TAG, "events for $type from $path")
+                            mBlockstackSession.getFile(path, GetFileOptions(), callback)
+                        }
+                        "blockstack-user" -> {
+                            val path = data.optString("src")
+                            Log.d(TAG, "events for $type from $path ignored")
+                            /*mBlockstackSession.getFile(
+                                path,
+                                GetFileOptions(username = data.optString("user"), decrypt = false),
+                                callback
+                            )*/
+                        }
+                        "ics" -> {
+                            // TODO
+                            Log.d(TAG, "events for $type ignored ($data.optString('src')")
+                        }
+                    }
                 }
-                Log.d(TAG, calendars.toString())
-                return calendars
+                Log.d(TAG, events.toString())
+                val result = JSONObject()
+                result.put("events", events)
+                result.put("calendarId", calendarId)
+                return result
             } else {
                 Log.e(TAG, "User not logged in")
                 syncResult.databaseError = true
@@ -264,7 +308,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
 
     /**
-     * Read XML from an input stream, storing it into the content provider.
+     * Storing calendar from JSON into the content provider.
      *
      *
      * This is where incoming data is persisted, committing the results of a sync. In order to
@@ -308,11 +352,9 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             entryMap[id] = calendar
         }
 
-        logCalendars(contentResolver)
-
         Log.i(TAG, "Fetching local entries for merge")
         val uri = asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, account.name, account.type)
-        val c = contentResolver.query(uri, PROJECTION, null, null, null)!!
+        val c = contentResolver.query(uri, CALENDAR_PROJECTION, null, null, null)!!
         Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
 
         // Find stale data
@@ -384,7 +426,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                     )
                 )
                     .withValue(CalendarContract.Calendars._SYNC_ID, uid)
-                    .withValue(CalendarContract.Calendars.CAL_SYNC1, e.getString("uid"))
+                    .withValue(CalendarContract.Calendars.CAL_SYNC1, uid)
                     .withValue(CalendarContract.Calendars.CAL_SYNC2, e.getString("type"))
                     .withValue(CalendarContract.Calendars.CAL_SYNC3, e.getJSONObject("data").toString())
                     .withValue(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, e.getString("name"))
@@ -413,11 +455,163 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         )
     }
 
+
+    /**
+     * Storing events from JSON into the content provider.
+     *
+     *
+     * This is where incoming data is persisted, committing the results of a sync. In order to
+     * minimize (expensive) disk operations, we compare incoming data with what's already in our
+     * database, and compute a merge. Only changes (insert/update/delete) will result in a database
+     * write.
+     *
+     *
+     * As an additional optimization, we use a batch operation to perform all database writes at
+     * once.
+     *
+     *
+     * Merge strategy:
+     * 1. Get cursor to all items in feed<br></br>
+     * 2. For each item, check if it's in the incoming data.<br></br>
+     * a. YES: Remove from "incoming" list. Check if data has mutated, if so, perform
+     * database UPDATE.<br></br>
+     * b. NO: Schedule DELETE from database.<br></br>
+     * (At this point, incoming database only contains missing items.)<br></br>
+     * 3. For any items remaining in incoming list, ADD to database.
+     */
+    @Throws(
+        IOException::class,
+        XmlPullParserException::class,
+        RemoteException::class,
+        OperationApplicationException::class,
+        ParseException::class
+    )
+    private fun updateLocalEvents(eventsResult: JSONObject, account: Account, syncResult: SyncResult) {
+
+        val events = eventsResult.getJSONObject("events")
+        val calendarId = eventsResult.getString("calendarId")
+        val contentResolver = context.contentResolver
+
+        val batch = ArrayList<ContentProviderOperation>()
+
+        // Build hash table of incoming entries
+        val entryMap = HashMap<String, JSONObject>()
+        for (key in events.keys()) {
+            val event = events.getJSONObject(key)
+            val id = event.optString("uid", UUID.randomUUID().toString())
+            event.put("uid", id)
+            entryMap[id] = event
+        }
+
+        Log.i(TAG, "Fetching local event entries for merge")
+        val uri = asSyncAdapter(CalendarContract.Events.CONTENT_URI, account.name, account.type)
+        val c =
+            contentResolver.query(uri, null, "${CalendarContract.Events.CALENDAR_ID} = ?", arrayOf(calendarId), null)!!
+        Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
+
+        var localEvent: LocalEvent
+        // Find stale data
+        while (c.moveToNext()) {
+            syncResult.stats.numEntries++
+            localEvent = LocalEvent(c)
+            val match = entryMap[localEvent.uid]
+            if (match != null && !localEvent.accountName.equals("friedger.id")) {
+                // Entry exists. Remove from entry map to prevent insert later.
+                entryMap.remove(localEvent.uid)
+                // Check to see if the entry needs to be updated
+                val existingUri =
+                    asSyncAdapter(CalendarContract.Events.CONTENT_URI, account.name, account.type).buildUpon()
+                        .appendPath(Integer.toString(localEvent.id)).build()
+                if (needsUpdate(localEvent, match)) {
+                    // Update existing record
+                    Log.i(TAG, "Scheduling update: $existingUri")
+                    batch.add(
+                        ContentProviderOperation.newUpdate(existingUri)
+                            .withValue(CalendarContract.Events.TITLE, match.optString("title", ""))
+                            .withValue(CalendarContract.Events.DESCRIPTION, match.optString("notes", ""))
+                            .withValue(
+                                CalendarContract.Events.ALL_DAY, if (match.optBoolean("allDay", false)) {
+                                    1
+                                } else {
+                                    0
+                                }
+                            )
+                            .withValue(CalendarContract.Events.DTSTART, match.getString("start"))
+                            .withValue(CalendarContract.Events.DTEND, match.getString("end"))
+                            .build()
+                    )
+                    syncResult.stats.numUpdates++
+                } else {
+                    Log.i(TAG, "No action: $existingUri")
+                }
+            } else {
+                // Entry doesn't exist. Remove it from the database.
+                val deleteUri =
+                    asSyncAdapter(CalendarContract.Events.CONTENT_URI, account.name, account.type).buildUpon()
+                        .appendPath(Integer.toString(localEvent.id)).build()
+                Log.i(TAG, "Scheduling delete: $deleteUri")
+                batch.add(ContentProviderOperation.newDelete(deleteUri).build())
+                syncResult.stats.numDeletes++
+            }
+        }
+        c.close()
+
+        // Add new items
+        var uid:String
+        for (e in entryMap.values) {
+            uid = e.getString("uid")
+            Log.i(TAG, "Scheduling insert: uid=" + uid + " " + e.optString("title", "-no title-"))
+
+
+            batch.add(
+                ContentProviderOperation.newInsert(
+                    asSyncAdapter(
+                        CalendarContract.Events.CONTENT_URI,
+                        account.name,
+                        account.type
+                    )
+                )
+                    .withValue(CalendarContract.Events._SYNC_ID, uid)
+                    .withValue(CalendarContract.Events.CALENDAR_ID, calendarId)
+                    .withValue(CalendarContract.Events.DTSTART, parseDt(e.optString("start")))
+                    .withValue(CalendarContract.Events.DTEND, parseDt(e.optString("end")))
+                    .withValue(CalendarContract.Events.TITLE, e.optString("title"))
+                    .withValue(CalendarContract.Events.DESCRIPTION, e.optString("notes"))
+                    .withValue(CalendarContract.Events.ALL_DAY, if(e.optBoolean("allData", false)) {1} else {0})
+                    .withValue(CalendarContract.Events.EVENT_TIMEZONE, "UTC")
+                    .withValue(CalendarContract.Events.DIRTY, 0)
+                    .withValue(CalendarContract.Events.HAS_ALARM, 0)
+                    .withValue(CalendarContract.Events.DELETED, 0)
+                    .withValue(CalendarContract.Events.ORIGINAL_ALL_DAY, 0)
+                    .build()
+            )
+            syncResult.stats.numInserts++
+        }
+        Log.i(TAG, "Merge solution ready. Applying batch update")
+        for (b in batch) {
+            Log.d(TAG, "${b.uri} ${b}")
+            mContentResolver.applyBatch(CalendarContract.Events.CONTENT_URI.authority!!, arrayListOf(b))
+        }
+        mContentResolver.notifyChange(
+            CalendarContract.Events.CONTENT_URI, null, // No local observer
+            false
+        )
+    }
+
+    private fun parseDt(dateTime: String?): Long {
+        return dateTimeFormat.parse(dateTime).time
+    }
+
+    private fun needsUpdate(localEvent: LocalEvent, jsonEvent: JSONObject): Boolean {
+        // check any difference in data
+        return true
+    }
+
     private fun logCalendars(contentResolver: ContentResolver) {
 
         Log.i(TAG, "Fetching local entries for merge")
         val uri = CalendarContract.Calendars.CONTENT_URI
-        val c = contentResolver.query(uri, PROJECTION, null, null, null)!!
+        val c = contentResolver.query(uri, CALENDAR_PROJECTION, null, null, null)!!
         Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
 
         // Find stale data
@@ -441,14 +635,17 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
     companion object {
         val TAG = "SyncAdapter"
+        val dateTimeFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+
         /**
          * Project used when querying content provider. Returns all known fields.
          */
-        private val PROJECTION = arrayOf(
+        private val CALENDAR_PROJECTION = arrayOf(
             BaseColumns._ID,
             CalendarContract.Calendars._SYNC_ID,
-            CalendarContract.Calendars.CAL_SYNC1,
+            //CalendarContract.Calendars.CAL_SYNC1,
             CalendarContract.Calendars.CAL_SYNC2,
+            CalendarContract.Calendars.CAL_SYNC3,
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.ACCOUNT_TYPE,
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
