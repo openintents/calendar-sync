@@ -1,3 +1,4 @@
+![Logo](app/src/main/ic_launcher-web.png)
 # OI Calendar-Sync
 Android Sync for OI Calandar, the Private, Encrypted Calendar in Your Cloud
 
