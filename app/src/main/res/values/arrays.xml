@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="progress_texts"><!-- Add your name here if you helped out -->
+        <item>Starting engines…</item>
+        <item>Unchaining identities…</item>
+        <item>Stacking blocks…</item>
+        <item>Opening silos…</item>
+        <item>Praying to Gaia…</item>
+    </string-array>
+
+    <string-array name="login_texts">
+        <item>Embracing Your identity…</item>
+        <item>Connecting Your storage…</item>
+        <item>Enjoying decentralization…</item>
+    </string-array>
+
+</resources>

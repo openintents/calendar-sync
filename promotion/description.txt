@@ -1,0 +1,11 @@
+OI Calendar-Sync let you synchronize your agenda between Android and the Web.
+It is build with Blockstack and uses Your decentralized identity and storage - no account creation needed, just your Blockstack ID.
+
+Note, that this is not a replacement for your calendar app. OI Calendar-Sync adds
+your events from the Web app OI Calendar to your Android calendar app (thanks to Android's content providers).
+
+Current limitations:
+- Changes on Android are not sync'ed to the Web
+- Web app is fixed to cal.openintents.org
+
+The app is free and open source!

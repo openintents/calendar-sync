@@ -38,11 +38,11 @@ import org.blockstack.android.sdk.model.GetFileOptions
 import org.blockstack.android.sdk.model.toBlockstackConfig
 import org.json.JSONArray
 import org.json.JSONObject
+import org.openintents.calendar.sync.model.LocalEvent
 import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
 import java.lang.String.format
 import java.net.MalformedURLException
-import java.text.DateFormat
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*

@@ -17,7 +17,32 @@ limitations under the License.
 
 <resources>
     <string name="account_name">OI Calendar Service</string>
-    <string name="loading">Waiting for sync...</string>
+    <string name="loading">Waiting for sync…</string>
     <string name="description_refresh">Refresh</string>
     <string name="account">Account</string>
+    <string name="about">About</string>
+    <string name="info_blockstack">Blockstack</string>
+    <string name="blockstack_help">Use your own identity to sync your calendar data between Android and the Web (%1$s)
+    </string>
+
+    <!-- About information -->
+    <string name="about_comments">Android Sync for OI Calendar, the private, encrypted calendar in your cloud.</string>
+    <string name="about_copyright">Copyright © 2019 OpenIntents</string>
+    <string name="website_url">http://www.openintents.org/calendar</string>
+    <string name="email">support@openintents.org</string>
+
+    <string-array name="about_authors"><!-- Add your name here if you helped out -->
+        <item>Friedger</item>
+    </string-array>
+
+    <string-array name="about_documenters"><!-- Add your name here if you helped out -->
+        <!-- <item></item> -->
+    </string-array>
+
+    <string-array name="about_artists"><!-- Add your name here if you helped out -->
+    </string-array>
+
+    <string-array name="about_translators"><!-- Add your name here if you helped out -->
+    </string-array>
+
 </resources>

@@ -25,7 +25,7 @@ import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.runBlocking
 import org.blockstack.android.sdk.BlockstackSession
-import org.openintents.calendar.AccountActivity
+import org.openintents.calendar.sync.AccountActivity
 import org.openintents.calendar.sync.blockstackConfig
 import org.openintents.calendar.sync.executorFactory
 import org.openintents.calendar.sync.j2v8Dispatcher
@@ -104,7 +104,7 @@ class GenericAccountService : Service() {
 
     companion object {
         private val TAG = "GenericAccountService"
-        suspend fun getAccount(context: Context, accountType: String): Account? {
+        fun getAccount(context: Context, accountType: String): Account? {
 
             var accountName:String? = null
             runBlocking(j2v8Dispatcher) {

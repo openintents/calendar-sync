@@ -46,45 +46,14 @@ import androidx.loader.content.Loader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import org.openintents.calendar.AccountActivity
-import org.openintents.calendar.R
 import org.openintents.calendar.common.accounts.GenericAccountService
-
-
-/**
- * List fragment containing a list of Atom entry objects (articles) stored in the local database.
- *
- *
- * Database access is mediated by a content provider, specified in
- * [FeedProvider]. This content
- * provider is
- * automatically populated by  [SyncService].
- *
- *
- * Selecting an item from the displayed list displays the article in the default browser.
- *
- *
- * If the content provider doesn't return any data, then the first sync hasn't run yet. This sync
- * adapter assumes data exists in the provider once a sync has run. If your app doesn't work like
- * this, you should add a flag that notes if a sync has run, so you can differentiate between "no
- * available data" and "no initial sync", and display this in the UI.
- *
- *
- * The ActionBar displays a "Refresh" button. When the user clicks "Refresh", the sync adapter
- * runs immediately. An indeterminate ProgressBar element is displayed, showing that the sync is
- * occurring.
- */
-/**
- * Mandatory empty constructor for the fragment manager to instantiate the
- * fragment (e.g. upon screen orientation changes).
- */
 
 private val REQUEST_CODE_PERMISSIONS: Int = 1
 
 class EntryListFragment : ListFragment(), LoaderManager.LoaderCallbacks<Cursor> {
 
     /**
-     * Cursor adapter for controlling ListView results.
+     * Cursor adapter for calendars
      */
     private var mAdapter: SimpleCursorAdapter? = null
 
@@ -104,7 +73,7 @@ class EntryListFragment : ListFragment(), LoaderManager.LoaderCallbacks<Cursor> 
     private var mOptionsMenu: Menu? = null
 
     /**
-     * Crfate a new anonymous SyncStatusObserver. It's attached to the app's ContentResolver in
+     * Create a new anonymous SyncStatusObserver. It's attached to the app's ContentResolver in
      * onResume(), and removed in onPause(). If status changes, it sets the state of the Refresh
      * button. If a sync is active or pending, the Refresh button is replaced by an indeterminate
      * ProgressBar; otherwise, the button itself is displayed.
@@ -285,7 +254,7 @@ class EntryListFragment : ListFragment(), LoaderManager.LoaderCallbacks<Cursor> 
     override fun onCreateOptionsMenu(menu: Menu?, inflater: MenuInflater?) {
         super.onCreateOptionsMenu(menu, inflater)
         mOptionsMenu = menu
-        inflater!!.inflate(R.menu.main, menu)
+        inflater!!.inflate(R.menu.account_details, menu)
     }
 
     /**
@@ -299,9 +268,6 @@ class EntryListFragment : ListFragment(), LoaderManager.LoaderCallbacks<Cursor> 
                     SyncUtils.triggerRefresh(activity!!)
                 }
                 return true
-            }
-            R.id.menu_account -> {
-                startActivity(Intent(activity, AccountActivity::class.java))
             }
         }
         return super.onOptionsItemSelected(item)

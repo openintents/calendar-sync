@@ -1,0 +1,15 @@
+----------------
+release 1.0
+date: ??
+
+- One-way sync from Web to Android
+
+----------------
+For the complete list of changes and a list of frequently asked questions, please visit:
+http://www.openintents.org/calendar
+
+You can help to improve the translation into your language at Launchpad:
+https://translations.launchpad.net/openintents/trunk
+
+The source code of this free and open source application is available at:
+http://github.com/openintents/calendar-sync

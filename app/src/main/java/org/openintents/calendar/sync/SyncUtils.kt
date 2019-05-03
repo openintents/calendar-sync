@@ -16,6 +16,7 @@
 
 package org.openintents.calendar.sync
 
+import android.accounts.Account
 import android.accounts.AccountManager
 import android.content.ContentResolver
 import android.content.Context
@@ -40,7 +41,7 @@ object SyncUtils {
      *
      * @param context Context
      */
-    suspend fun createSyncAccount(context: Context) {
+    suspend fun createSyncAccount(context: Context): Account? {
         var newAccount = false
         val setupComplete = PreferenceManager
             .getDefaultSharedPreferences(context).getBoolean(PREF_SETUP_COMPLETE, false)
@@ -65,10 +66,11 @@ object SyncUtils {
         // data has been deleted. (Note that it's possible to clear app data WITHOUT affecting
         // the account list, so wee need to check both.)
         if (newAccount || !setupComplete) {
-            triggerRefresh(context)
+            triggerRefresh(context, account!!)
             PreferenceManager.getDefaultSharedPreferences(context).edit()
                 .putBoolean(PREF_SETUP_COMPLETE, true).apply()
         }
+        return account
     }
 
     /**
@@ -84,15 +86,22 @@ object SyncUtils {
      * the OS additional freedom in scheduling your sync request.
      */
     suspend fun triggerRefresh(context: Context) {
-        val b = Bundle()
+
         val account = GenericAccountService.getAccount(context, ACCOUNT_TYPE) // Sync account
+        if (account != null) {
+           triggerRefresh(context, account)
+        }
+    }
+
+    fun triggerRefresh(context: Context, account:Account) {
         // Disable sync backoff and ignore sync preferences. In other words...perform sync NOW!
+        val b = Bundle()
         b.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)
         b.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true)
         ContentResolver.requestSync(
             account,
             CalendarContract.AUTHORITY, // Content authority
             b
-        )                                             // Extras
+        )
     }
 }

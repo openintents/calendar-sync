@@ -13,7 +13,18 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        resConfigs "en"
+        setProperty("archivesBaseName", "$applicationId-$versionName")
     }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
+            universalApk false
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -28,7 +39,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.0.2'
     implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
     implementation 'com.google.android.material:material:1.0.0'
-
+    implementation 'com.github.openintents:distribution:3.0.2'
     implementation 'com.github.blockstack:blockstack-android:0.4.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1'
 

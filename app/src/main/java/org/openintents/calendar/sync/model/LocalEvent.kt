@@ -1,4 +1,4 @@
-package org.openintents.calendar.sync
+package org.openintents.calendar.sync.model
 
 import android.database.Cursor
 import android.provider.CalendarContract
