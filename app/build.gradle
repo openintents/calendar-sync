@@ -10,8 +10,8 @@ android {
         applicationId "org.openintents.calendar.sync"
         minSdkVersion 19
         targetSdkVersion 28
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 3
+        versionName "1.0.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         resConfigs "en"
         setProperty("archivesBaseName", "$applicationId-$versionName")
@@ -20,7 +20,7 @@ android {
         abi {
             enable true
             reset()
-            include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
             universalApk false
         }
     }
@@ -33,14 +33,29 @@ android {
     }
 }
 
+ext.abiCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, x86: 3, x86_64: 4]
+
+import com.android.build.OutputFile
+
+android.applicationVariants.all { variant ->
+    variant.outputs.each { output ->
+        def baseAbiVersionCode =
+                project.ext.abiCodes.get(output.getFilter(OutputFile.ABI))
+        if (baseAbiVersionCode != null) {
+            output.versionCodeOverride =
+                    baseAbiVersionCode * 1000 + variant.versionCode
+        }
+    }
+}
+
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'androidx.appcompat:appcompat:1.0.2'
     implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
     implementation 'com.google.android.material:material:1.0.0'
-    implementation 'com.github.openintents:distribution:3.0.2'
-    implementation 'com.github.blockstack:blockstack-android:0.4.4'
+    implementation 'com.github.blockstack:blockstack-android:70fd5a9'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1'
 
     testImplementation 'junit:junit:4.12'

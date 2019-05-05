@@ -3,4 +3,10 @@
 	<color name="colorPrimary">#558ed5</color>
 	<color name="colorPrimaryDark">#4e81c2</color>
 	<color name="colorAccent">#bb1807</color>
+
+	<color name="oi_distribution_separator">#3FFF</color>
+	<color name="oi_distribution_separator_secondary">#1FFF</color>
+
+	<color name="ic_launcher_background">#FFFFFF</color>
+
 </resources>

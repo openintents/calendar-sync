@@ -89,10 +89,19 @@
             android:id="@+id/calendarButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Open Calendar"
+            android:text="@string/open_calendar"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/signOutButton"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/syncNowButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sync_now"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/calendarButton"/>
     <androidx.constraintlayout.widget.Guideline
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

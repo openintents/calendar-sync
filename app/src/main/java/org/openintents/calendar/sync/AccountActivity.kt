@@ -1,18 +1,22 @@
 package org.openintents.calendar.sync
 
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.provider.CalendarContract
+import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.PermissionChecker
 import kotlinx.android.synthetic.main.activity_account.*
 import kotlinx.android.synthetic.main.content_account.*
 import kotlinx.coroutines.GlobalScope
@@ -20,7 +24,7 @@ import kotlinx.coroutines.launch
 import org.blockstack.android.sdk.BlockstackSession
 import org.blockstack.android.sdk.model.UserData
 import org.json.JSONObject.NULL
-import org.openintents.distribution.AboutDialog
+import org.openintents.distribution.about.About
 
 
 class AccountActivity : AppCompatActivity() {
@@ -55,6 +59,7 @@ class AccountActivity : AppCompatActivity() {
         signInButton.visibility = View.GONE
         signOutButton.visibility = View.GONE
         calendarButton.visibility = View.GONE
+        syncNowButton.visibility = View.GONE
         progressBar.visibility = View.VISIBLE
         progressText.visibility = View.VISIBLE
         blockstackHelp.visibility = View.VISIBLE
@@ -88,7 +93,7 @@ class AccountActivity : AppCompatActivity() {
             }
         }
 
-        signOutButton.setOnClickListener { _ ->
+        signOutButton.setOnClickListener {
             GlobalScope.launch(j2v8Dispatcher) {
                 blockstackSession().signUserOut()
                 Log.d(TAG, "signed out!")
@@ -96,7 +101,7 @@ class AccountActivity : AppCompatActivity() {
             }
         }
 
-        calendarButton.setOnClickListener { _ ->
+        calendarButton.setOnClickListener {
             val builder = CalendarContract.CONTENT_URI.buildUpon()
             builder.appendPath("time")
             ContentUris.appendId(builder, System.currentTimeMillis())
@@ -104,6 +109,21 @@ class AccountActivity : AppCompatActivity() {
                 .setData(builder.build())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
+        }
+
+        accountName.setOnClickListener {
+            val authorities = arrayOf(CalendarContract.AUTHORITY)
+            val accountTypes = arrayOf(SyncUtils.ACCOUNT_TYPE)
+            val intent = Intent(Settings.ACTION_SYNC_SETTINGS)
+            intent.putExtra(Settings.EXTRA_AUTHORITIES, authorities)
+            intent.putExtra(Settings.EXTRA_ACCOUNT_TYPES, accountTypes)
+            startActivity(intent)
+        }
+        syncNowButton.setOnClickListener {
+            GlobalScope.launch {
+                SyncUtils.createSyncAccount(this@AccountActivity)
+                SyncUtils.triggerRefresh(this@AccountActivity)
+            }
         }
     }
 
@@ -130,6 +150,7 @@ class AccountActivity : AppCompatActivity() {
                 signOutButton.visibility = View.GONE
             }
             calendarButton.visibility = signOutButton.visibility
+            syncNowButton.visibility = signOutButton.visibility
             blockstackHelp.visibility = signInButton.visibility
             account.visibility = signOutButton.visibility
             accountName.visibility = signOutButton.visibility
@@ -140,9 +161,22 @@ class AccountActivity : AppCompatActivity() {
     }
 
     private fun onSignIn() {
-        GlobalScope.launch(j2v8Dispatcher) {
-            Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
-            onLoaded()
+        if (PermissionChecker.checkSelfPermission(
+                this,
+                Manifest.permission.READ_CALENDAR
+            ) == PermissionChecker.PERMISSION_GRANTED
+        ) {
+            GlobalScope.launch(j2v8Dispatcher) {
+                Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
+                SyncUtils.createSyncAccount(this@AccountActivity)
+                onLoaded()
+            }
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+                REQUEST_CODE_PERMISSIONS
+            )
         }
     }
 
@@ -192,14 +226,22 @@ class AccountActivity : AppCompatActivity() {
                 return true
             }
             R.id.menu_about -> {
-                AboutDialog.showDialogOrStartActivity(
-                    this,
-                    0
-                )
+                startActivity(Intent(this, About::class.java))
                 return true
             }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            for (grantResult in grantResults) {
+                if (grantResult != PermissionChecker.PERMISSION_GRANTED) {
+                    return
+                }
+            }
+            onSignIn()
+        }
     }
 
     fun blockstackSession(): BlockstackSession {
@@ -213,6 +255,7 @@ class AccountActivity : AppCompatActivity() {
 
     companion object {
         private val HELP_URI: Uri = Uri.parse("http://openintents.org/calendar")
+        private val REQUEST_CODE_PERMISSIONS: Int = 1
     }
 }
 

@@ -59,7 +59,9 @@
         </activity>
 
 
-        <activity android:name="org.openintents.distribution.about.About"/>
+        <activity android:name="org.openintents.distribution.about.About"
+        android:theme="@style/Theme.AppCompat"/>
+
         <service android:name=".SyncService"
                  android:exported="true">
             <intent-filter>

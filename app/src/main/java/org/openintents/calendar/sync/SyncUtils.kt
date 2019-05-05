@@ -23,6 +23,7 @@ import android.content.Context
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.provider.CalendarContract
+import android.util.Log
 import org.openintents.calendar.common.accounts.GenericAccountService
 
 
@@ -41,7 +42,7 @@ object SyncUtils {
      *
      * @param context Context
      */
-    suspend fun createSyncAccount(context: Context): Account? {
+    fun createSyncAccount(context: Context): Account? {
         var newAccount = false
         val setupComplete = PreferenceManager
             .getDefaultSharedPreferences(context).getBoolean(PREF_SETUP_COMPLETE, false)
@@ -85,7 +86,7 @@ object SyncUtils {
      * but the user is not actively waiting for that data, you should omit this flag; this will give
      * the OS additional freedom in scheduling your sync request.
      */
-    suspend fun triggerRefresh(context: Context) {
+    fun triggerRefresh(context: Context) {
 
         val account = GenericAccountService.getAccount(context, ACCOUNT_TYPE) // Sync account
         if (account != null) {
@@ -94,6 +95,7 @@ object SyncUtils {
     }
 
     fun triggerRefresh(context: Context, account:Account) {
+        Log.d("SyncUtils", "triggerRefresh")
         // Disable sync backoff and ignore sync preferences. In other words...perform sync NOW!
         val b = Bundle()
         b.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)

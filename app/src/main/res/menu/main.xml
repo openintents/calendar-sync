@@ -1,11 +1,12 @@
 <menu xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/menu_blockstack"
-          android:title="@string/info_blockstack"
+          android:title="@string/help"
           android:icon="@drawable/ic_help"
           app:showAsAction="ifRoom"/>
     <item android:id="@+id/menu_about"
           android:icon="@drawable/ic_info"
           android:title="@string/about"
+          android:visible="false"
           app:showAsAction="ifRoom"
     />
 </menu>

@@ -16,12 +16,15 @@ limitations under the License.
 -->
 
 <resources>
+    <string name="app_name">OI Calendar-Sync</string>
+    <string name="about_translators">Friedger Müffke</string>
+
     <string name="account_name">OI Calendar Service</string>
     <string name="loading">Waiting for sync…</string>
     <string name="description_refresh">Refresh</string>
     <string name="account">Account</string>
     <string name="about">About</string>
-    <string name="info_blockstack">Blockstack</string>
+    <string name="help">Help</string>
     <string name="blockstack_help">Use your own identity to sync your calendar data between Android and the Web (%1$s)
     </string>
 
@@ -30,6 +33,19 @@ limitations under the License.
     <string name="about_copyright">Copyright © 2019 OpenIntents</string>
     <string name="website_url">http://www.openintents.org/calendar</string>
     <string name="email">support@openintents.org</string>
+    <string name="sync_now">Sync now</string>
+    <string name="open_calendar">Open Calendar</string>
+    <string name="no_information_available">No information available.</string>
+    <string name="about_activity_name_extended">About %s</string>
+    <string name="l_authors">Written by</string>
+    <string name="l_documenters">Documented by</string>
+    <string name="l_translators">Translated by</string>
+    <string name="l_artists">Artwork by</string>
+    <string name="l_international_translators">International translations by</string>
+    <string name="l_credits">Credits</string>
+    <string name="l_license">License</string>
+    <string name="l_info">General Info</string>
+    <string name="l_recent_changes">Recent changes</string>
 
     <string-array name="about_authors"><!-- Add your name here if you helped out -->
         <item>Friedger</item>
