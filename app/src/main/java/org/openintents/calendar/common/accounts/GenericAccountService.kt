@@ -50,7 +50,7 @@ class GenericAccountService : Service() {
 
         override fun editProperties(
             accountAuthenticatorResponse: AccountAuthenticatorResponse,
-            s: String
+            accountName: String
         ): Bundle {
             throw UnsupportedOperationException()
         }
@@ -58,7 +58,7 @@ class GenericAccountService : Service() {
         @Throws(NetworkErrorException::class)
         override fun addAccount(
             accountAuthenticatorResponse: AccountAuthenticatorResponse,
-            accountType: String, authTokenType: String, requiredFeatures: Array<String>, options: Bundle
+            accountType: String, authTokenType: String?, requiredFeatures: Array<String>?, options: Bundle
         ): Bundle? {
             val b = Bundle()
             b.putParcelable(AccountManager.KEY_INTENT, Intent(context, AccountActivity::class.java).putExtra("action", "addAccount"))

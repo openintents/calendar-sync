@@ -70,50 +70,6 @@ class About : AppCompatActivity() {
 
     private var metaDataReader: MetaDataReader? = null
 
-    /**
-     * Retrieve the package name to be used with this intent.
-     *
-     *
-     * Package name is retrieved from EXTRA_PACKAGE or from
-     * getCallingPackage().
-     *
-     *
-     * If none is supplied, it is set to this application.
-     */
-    internal fun getpackageNameFromIntent(intent: Intent): String {
-        var packageName: String? = null
-
-        if (intent.hasExtra(AboutIntents.EXTRA_PACKAGE_NAME)) {
-            packageName = intent.getStringExtra(AboutIntents.EXTRA_PACKAGE_NAME)
-
-            // Check whether packageName is valid:
-            try {
-                packageManager.getApplicationInfo(
-                    packageName, 0
-                )
-            } catch (e: NameNotFoundException) {
-                Log.e(TAG, "Package name $packageName is not valid.", e)
-                packageName = null
-            }
-
-        }
-
-        // If no valid name has been found, we try to obtain it from
-        // the calling activit.
-        if (packageName == null) {
-            // Retrieve from calling activity
-            packageName = callingPackage
-        }
-
-        if (packageName == null) {
-            // In the worst case, use our own name:
-            packageName = this.packageName
-        }
-
-        return packageName!!
-    }
-
-
     /* (non-Javadoc)
      * @see android.app.ActivityGroup#onCreate(android.os.Bundle)
      */
@@ -124,9 +80,9 @@ class About : AppCompatActivity() {
         val res = resources
         Log.d("identifier", res.getString(res.getIdentifier("string/about_translators", null, packageName)))
 
-        val packageName = getpackageNameFromIntent(intent)
+        val pkgName = packageName
 
-        val aboutPagerAdapter = AboutPagerAdapter(hasRecentChanges(packageName, intent), this, supportFragmentManager, packageName)
+        val aboutPagerAdapter = AboutPagerAdapter(hasRecentChanges(pkgName, intent), this, supportFragmentManager, pkgName)
         pager.adapter = aboutPagerAdapter
         tab_layout.setupWithViewPager(pager)
     }
@@ -181,9 +137,9 @@ class About : AppCompatActivity() {
             setIntent(Intent())
         }
 
-        val packageName = getpackageNameFromIntent(intent)
+        val pkgName = packageName
 
-        Log.i(TAG, "Showing About dialog for package $packageName")
+        Log.i(TAG, "Showing About dialog for package $pkgName")
 
         setResult(Activity.RESULT_OK)
     }
@@ -191,7 +147,7 @@ class About : AppCompatActivity() {
     /**
      * @return true if recent changes are available
      */
-    protected fun hasRecentChanges(packageName: String, intent: Intent?): Boolean {
+    protected fun hasRecentChanges(pkgName: String, intent: Intent?): Boolean {
         val resourceid = AboutUtils.getResourceIdExtraOrMetadata(
             metaDataReader, AboutMetaData.METADATA_RECENT_CHANGES
         )
@@ -249,7 +205,7 @@ class About : AppCompatActivity() {
         private val recentChanges: Boolean,
         val ctx: Context,
         fm: FragmentManager,
-        val packageName: String
+        val pkgName: String
     ) :
         FragmentPagerAdapter(fm) {
         override fun getCount(): Int {
@@ -271,19 +227,68 @@ class About : AppCompatActivity() {
         }
 
         override fun getItem(position: Int): Fragment {
-
-            val fragment = AboutFragment(packageName)
-            fragment.arguments = Bundle().apply {
-                // Our object is just an integer :-P
-                putInt(ARG_CONTENT, layouts[position])
+            return when (position) {
+                0 -> InfoFragment(pkgName)
+                1 -> CreditsFragment(pkgName)
+                2 -> LicenseFragment(pkgName)
+                3 -> RecentChangesFragment(pkgName)
+                else -> Fragment()
             }
-            return fragment
-
         }
     }
 
-    class AboutFragment(val packageName: String) : Fragment() {
+    class InfoFragment(pkgName:String): AboutFragment(pkgName) {
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+            return inflater.inflate(R.layout.oi_distribution_about_info, container, false)
+        }
 
+        override fun onAttach(context: Context?) {
+            super.onAttach(context)
+            displayLogo(pkgName)
+            displayProgramNameAndVersion(pkgName)
+            displayComments(pkgName)
+            displayCopyright(pkgName)
+            displayWebsiteLink(pkgName)
+            displayEmail(pkgName)
+            checkCreditsAvailable()
+        }
+    }
+
+    class CreditsFragment(pkgName:String): AboutFragment(pkgName) {
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+            return inflater.inflate(R.layout.oi_distribution_about_credits, container, false)
+        }
+        override fun onAttach(context: Context?) {
+            super.onAttach(context)
+            displayAuthors(pkgName)
+            displayDocumenters(pkgName)
+            displayTranslators(pkgName)
+            displayArtists(pkgName)
+            displayInternationalTranslators(pkgName)
+        }
+    }
+
+    class LicenseFragment(pkgName:String): AboutFragment(pkgName) {
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+            return inflater.inflate(R.layout.oi_distribution_about_license, container, false)
+        }
+        override fun onAttach(context: Context?) {
+            super.onAttach(context)
+          displayLicense(pkgName)
+        }
+    }
+
+    class RecentChangesFragment(pkgName:String): AboutFragment(pkgName) {
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+            return inflater.inflate(R.layout.oi_distribution_about_recent_changes, container, false)
+        }
+        override fun onAttach(context: Context?) {
+            super.onAttach(context)
+            displayRecentChanges(pkgName)
+        }
+    }
+
+    open class AboutFragment(val pkgName: String) : Fragment() {
         private lateinit var metaDataReader: MetaDataReader
         private lateinit var packageManager: PackageManager
         /**
@@ -309,21 +314,6 @@ class About : AppCompatActivity() {
         protected lateinit var mLicenseText: TextView
         protected lateinit var mRecentChangesText: TextView
 
-        override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
-        ): View {
-            val layoutId = arguments?.takeIf { it.containsKey(ARG_CONTENT) }.let {
-                arguments?.getInt(ARG_CONTENT)
-            }
-            if (layoutId != null) {
-                return inflater.inflate(layoutId, container, false)
-            } else {
-                return View(inflater.context)
-            }
-
-        }
 
         override fun onAttach(context: Context?) {
             super.onAttach(context)
@@ -331,27 +321,12 @@ class About : AppCompatActivity() {
             try {
                 metaDataReader = MetaDataReader(
                     context.applicationContext,
-                    packageName,
+                    pkgName,
                     metaDataNameToTagName
                 )
             } catch (e: NameNotFoundException) {
-                throw IllegalArgumentException("Package name '$packageName' doesn't exist.")
+                throw IllegalArgumentException("Package name '$pkgName' doesn't exist.")
             }
-            
-            displayLogo(packageName)
-            displayProgramNameAndVersion(packageName)
-            displayComments(packageName)
-            displayCopyright(packageName)
-            displayWebsiteLink(packageName)
-            displayAuthors(packageName)
-            displayDocumenters(packageName)
-            displayTranslators(packageName)
-            displayArtists(packageName)
-            displayInternationalTranslators(packageName)
-            displayLicense(packageName)
-            displayEmail(packageName)
-            displayRecentChanges(packageName)
-            checkCreditsAvailable()
         }
 
         /**
@@ -408,11 +383,11 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun displayArtists(packageName: String) {
+        protected fun displayArtists(pkgName: String) {
             val textarray = AboutUtils.getStringArrayExtraOrMetadata(
                 metaDataReader,
                 activity!!,
-                packageName,
+                pkgName,
 
                 AboutMetaData.METADATA_ARTISTS
             )
@@ -434,11 +409,11 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        private fun displayAuthors(packageName: String) {
+        protected fun displayAuthors(pkgName: String) {
             val textarray = AboutUtils.getStringArrayExtraOrMetadata(
                 metaDataReader,
                 activity!!,
-                packageName,
+                pkgName,
                 AboutMetaData.METADATA_AUTHORS
             )
 
@@ -457,11 +432,10 @@ class About : AppCompatActivity() {
         /**
          * Fetch and display comments information.
          *
-         * @param intent The intent from which to fetch the information.
          */
-        protected fun displayComments(packageName: String) {
+        protected fun displayComments(pkgName: String) {
             val text = AboutUtils.getStringExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName, AboutMetaData.METADATA_COMMENTS
+                metaDataReader, this.activity!!, pkgName, AboutMetaData.METADATA_COMMENTS
             )
 
             if (!TextUtils.isEmpty(text)) {
@@ -477,9 +451,9 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun displayCopyright(packageName: String) {
+        protected fun displayCopyright(pkgName: String) {
             val text = AboutUtils.getStringExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName,  AboutMetaData.METADATA_COPYRIGHT
+                metaDataReader, this.activity!!, pkgName,  AboutMetaData.METADATA_COPYRIGHT
             )
 
             if (!TextUtils.isEmpty(text)) {
@@ -495,9 +469,9 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun displayDocumenters(packageName: String) {
+        protected fun displayDocumenters(pkgName: String) {
             val textarray = AboutUtils.getStringArrayExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName,  AboutMetaData.METADATA_DOCUMENTERS
+                metaDataReader, this.activity!!, pkgName,  AboutMetaData.METADATA_DOCUMENTERS
             )
             val text = AboutUtils.getTextFromArray(textarray)
 
@@ -517,7 +491,7 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun displayLicense(packageName: String) {
+        protected fun displayLicense(pkgName: String) {
 
             val resourceid = AboutUtils.getResourceIdExtraOrMetadata(
                 metaDataReader, AboutMetaData.METADATA_LICENSE
@@ -528,7 +502,7 @@ class About : AppCompatActivity() {
                 return
             }
 
-            val license = getRawResource(packageName, resourceid, false)
+            val license = getRawResource(pkgName, resourceid, false)
 
             et_license.text = license
         }
@@ -538,7 +512,7 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun displayRecentChanges(packageName: String) {
+        protected fun displayRecentChanges(pkgName: String) {
 
             val resourceid = AboutUtils.getResourceIdExtraOrMetadata(
                 metaDataReader,  AboutMetaData.METADATA_RECENT_CHANGES
@@ -550,17 +524,17 @@ class About : AppCompatActivity() {
                 return
             }
 
-            val recentchanges = getRawResource(packageName, resourceid, true)
+            val recentchanges = getRawResource(pkgName, resourceid, true)
 
             et_recent_changes.text = recentchanges
         }
 
-        private fun getRawResource(packageName: String, resourceid: Int, preserveLineBreaks: Boolean): String {
+        private fun getRawResource(pkgName: String, resourceid: Int, preserveLineBreaks: Boolean): String {
             // Retrieve text from resource:
             var text = ""
             try {
                 val resources = packageManager
-                    .getResourcesForApplication(packageName)
+                    .getResourcesForApplication(pkgName)
 
                 //Read in the license file as a big String
                 val `in` = BufferedReader(
@@ -608,15 +582,15 @@ class About : AppCompatActivity() {
          * Fetch and display logo information.
          *
          */
-        protected fun displayLogo(packageName: String) {
+        protected fun displayLogo(pkgName: String) {
                 try {
                     val pi = packageManager.getPackageInfo(
-                        packageName, 0
+                        pkgName, 0
                     )
                     val resources = packageManager
-                        .getResourcesForApplication(packageName)
+                        .getResourcesForApplication(pkgName)
                     val resourcename = resources.getResourceName(pi.applicationInfo.icon)
-                    changeLogoImageResource(resourcename, packageName)
+                    changeLogoImageResource(resourcename, pkgName)
                 } catch (e: NameNotFoundException) {
                     Log.e(TAG, "Package name not found", e)
                     setErrorLogo()
@@ -636,9 +610,9 @@ class About : AppCompatActivity() {
          * Fetch and display program name and version information.
          *
          */
-        protected fun displayProgramNameAndVersion(packageName: String) {
-            val applicationlabel = getApplicationLabel(packageName)
-            val versionname = getVersionName(packageName)
+        protected fun displayProgramNameAndVersion(pkgName: String) {
+            val applicationlabel = getApplicationLabel(pkgName)
+            val versionname = getVersionName(pkgName)
 
             var combined = applicationlabel
             if (!TextUtils.isEmpty(versionname)) {
@@ -655,15 +629,15 @@ class About : AppCompatActivity() {
          * Get application label.
          *
          */
-        protected fun getApplicationLabel(packageName: String): String? {
+        protected fun getApplicationLabel(pkgName: String): String? {
             var applicationlabel: String? = null
                 try {
                     val pi = packageManager.getPackageInfo(
-                        packageName, 0
+                        pkgName, 0
                     )
                     val labelid = pi.applicationInfo.labelRes
                     val resources = packageManager
-                        .getResourcesForApplication(packageName)
+                        .getResourcesForApplication(pkgName)
                     applicationlabel = resources.getString(labelid)
                 } catch (e: NameNotFoundException) {
                     Log.e(TAG, "Package name not found", e)
@@ -677,11 +651,11 @@ class About : AppCompatActivity() {
          *
          * @param intent The intent from which to fetch the information.
          */
-        protected fun getVersionName(packageName: String): String? {
+        protected fun getVersionName(pkgName: String): String? {
             var versionname: String? = null
                 try {
                     val pi = packageManager.getPackageInfo(
-                        packageName, 0
+                        pkgName, 0
                     )
                     versionname = pi.versionName
                 } catch (e: NameNotFoundException) {
@@ -695,12 +669,12 @@ class About : AppCompatActivity() {
          *
          */
         protected fun displayTranslators(
-            packageName: String
+            pkgName: String
         ) {
 
             val textarray = AboutUtils.getStringArrayExtraOrMetadata(
                 metaDataReader, this.activity!!,
-                packageName,
+                pkgName,
                 AboutMetaData.METADATA_TRANSLATORS
             )
             var text = AboutUtils.getTextFromArray(textarray)
@@ -712,7 +686,7 @@ class About : AppCompatActivity() {
             } else {
                 text = AboutUtils.getStringExtraOrMetadata(
                     metaDataReader, this.activity!!,
-                    packageName,
+                    pkgName,
                     AboutMetaData.METADATA_TRANSLATORS
                 )
 
@@ -749,7 +723,7 @@ class About : AppCompatActivity() {
          * Fetch and display international translators information.
          * This is only possible through the string resource directly - not through intent.
          */
-        protected fun displayInternationalTranslators(packageName: String) {
+        protected fun displayInternationalTranslators(pkgName: String) {
 
             val id = AboutUtils.getResourceIdMetadata(metaDataReader!!, AboutMetaData.METADATA_TRANSLATORS)
 
@@ -768,7 +742,7 @@ class About : AppCompatActivity() {
                 try {
                     // remote resources:
                     val resources = packageManager
-                        .getResourcesForApplication(packageName)
+                        .getResourcesForApplication(pkgName)
 
                     val sb = StringBuilder()
 
@@ -852,13 +826,13 @@ class About : AppCompatActivity() {
          * Fetch and display website link information.
          *
          */
-        protected fun displayWebsiteLink(packageName: String) {
+        protected fun displayWebsiteLink(pkgName: String) {
             val websitelabel = AboutUtils.getStringExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName,
+                metaDataReader, this.activity!!, pkgName,
                  AboutMetaData.METADATA_WEBSITE_LABEL
             )
             val websiteurl = AboutUtils.getStringExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName,
+                metaDataReader, this.activity!!, pkgName,
                  AboutMetaData.METADATA_WEBSITE_URL
             )
 
@@ -901,9 +875,9 @@ class About : AppCompatActivity() {
          * Fetch and display website link information.
          *
          */
-        protected fun displayEmail(packageName: String) {
+        protected fun displayEmail(pkgName: String) {
             val email = AboutUtils.getStringExtraOrMetadata(
-                metaDataReader, this.activity!!, packageName,
+                metaDataReader, this.activity!!, pkgName,
              AboutMetaData.METADATA_EMAIL
             )
 
@@ -931,7 +905,6 @@ class About : AppCompatActivity() {
             }
 
         }
-
     }
 
 }

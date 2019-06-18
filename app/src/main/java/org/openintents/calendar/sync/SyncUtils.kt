@@ -20,10 +20,13 @@ import android.accounts.Account
 import android.accounts.AccountManager
 import android.content.ContentResolver
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.provider.CalendarContract
 import android.util.Log
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import org.openintents.calendar.common.accounts.GenericAccountService
 
 
@@ -42,13 +45,17 @@ object SyncUtils {
      *
      * @param context Context
      */
-    fun createSyncAccount(context: Context): Account? {
+    fun createSyncAccount(context: Context, accountName: String?): Account? {
         var newAccount = false
         val setupComplete = PreferenceManager
             .getDefaultSharedPreferences(context).getBoolean(PREF_SETUP_COMPLETE, false)
 
         // Create account, if it's missing. (Either first run, or user has deleted account.)
-        val account = GenericAccountService.getAccount(context, ACCOUNT_TYPE)
+        val account = if (accountName != null) {
+            Account(accountName, ACCOUNT_TYPE)
+        } else {
+            GenericAccountService.getAccount(context, ACCOUNT_TYPE)
+        }
         val accountManager = context.getSystemService(Context.ACCOUNT_SERVICE) as AccountManager
         if (account != null && accountManager.addAccountExplicitly(account, null, null)) {
             // Inform the system that this account supports sync
@@ -67,7 +74,7 @@ object SyncUtils {
         // data has been deleted. (Note that it's possible to clear app data WITHOUT affecting
         // the account list, so wee need to check both.)
         if (newAccount || !setupComplete) {
-            triggerRefresh(context, account!!)
+            triggerRefresh(account!!)
             PreferenceManager.getDefaultSharedPreferences(context).edit()
                 .putBoolean(PREF_SETUP_COMPLETE, true).apply()
         }
@@ -90,11 +97,11 @@ object SyncUtils {
 
         val account = GenericAccountService.getAccount(context, ACCOUNT_TYPE) // Sync account
         if (account != null) {
-           triggerRefresh(context, account)
+           triggerRefresh(account)
         }
     }
 
-    fun triggerRefresh(context: Context, account:Account) {
+    fun triggerRefresh(account: Account) {
         Log.d("SyncUtils", "triggerRefresh")
         // Disable sync backoff and ignore sync preferences. In other words...perform sync NOW!
         val b = Bundle()
@@ -105,5 +112,18 @@ object SyncUtils {
             CalendarContract.AUTHORITY, // Content authority
             b
         )
+    }
+
+
+    fun removeAccount(context: Context, accountName: String?) {
+        if (accountName != null) {
+            val account = Account(accountName, ACCOUNT_TYPE)
+            val accountManager = context.getSystemService(Context.ACCOUNT_SERVICE) as AccountManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                accountManager.removeAccountExplicitly(account)
+            } else {
+                Toast.makeText(context, R.string.remove_account_min_sdk, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 }

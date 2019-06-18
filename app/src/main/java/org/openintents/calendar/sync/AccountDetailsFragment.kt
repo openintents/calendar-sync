@@ -130,7 +130,7 @@ class EntryListFragment : ListFragment(), LoaderManager.LoaderCallbacks<Cursor> 
 
         GlobalScope.launch {
             // Create account, if needed
-            SyncUtils.createSyncAccount(context!!)
+            SyncUtils.createSyncAccount(context!!, null)
         }
     }
 

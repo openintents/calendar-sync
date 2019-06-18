@@ -46,6 +46,7 @@ limitations under the License.
     <string name="l_license">License</string>
     <string name="l_info">General Info</string>
     <string name="l_recent_changes">Recent changes</string>
+    <string name="remove_account_min_sdk">The current Android version does not support removing accounts.</string>
 
     <string-array name="about_authors"><!-- Add your name here if you helped out -->
         <item>Friedger</item>

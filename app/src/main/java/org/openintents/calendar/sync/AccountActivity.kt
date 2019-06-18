@@ -94,6 +94,7 @@ class AccountActivity : AppCompatActivity() {
         }
 
         signOutButton.setOnClickListener {
+            SyncUtils.removeAccount(this, getAccountName(currentUserData))
             GlobalScope.launch(j2v8Dispatcher) {
                 blockstackSession().signUserOut()
                 Log.d(TAG, "signed out!")
@@ -119,10 +120,14 @@ class AccountActivity : AppCompatActivity() {
             intent.putExtra(Settings.EXTRA_ACCOUNT_TYPES, accountTypes)
             startActivity(intent)
         }
+
         syncNowButton.setOnClickListener {
             GlobalScope.launch {
-                SyncUtils.createSyncAccount(this@AccountActivity)
-                SyncUtils.triggerRefresh(this@AccountActivity)
+                // sync account should have been created already
+                val account = SyncUtils.createSyncAccount(this@AccountActivity, getAccountName(currentUserData))
+                if (account != null) {
+                    SyncUtils.triggerRefresh(account)
+                }
             }
         }
     }
@@ -136,12 +141,7 @@ class AccountActivity : AppCompatActivity() {
             progressBar.visibility = View.GONE
             progressText.visibility = View.GONE
             if (signedIn) {
-                val username = currentUserData?.json?.opt("username")
-                accountName.text = if (username !== NULL) {
-                    username.toString()
-                } else {
-                    currentUserData?.decentralizedID
-                }
+                accountName.text = getAccountName(currentUserData)
                 signInButton.visibility = View.GONE
                 signOutButton.visibility = View.VISIBLE
             } else {
@@ -160,16 +160,31 @@ class AccountActivity : AppCompatActivity() {
 
     }
 
+    private fun getAccountName(userData: UserData?): String? {
+        val username = userData?.json?.opt("username")
+        return if (username !== NULL) {
+            username.toString()
+        } else {
+            userData?.decentralizedID
+        }
+    }
+
     private fun onSignIn() {
         if (PermissionChecker.checkSelfPermission(
                 this,
                 Manifest.permission.READ_CALENDAR
             ) == PermissionChecker.PERMISSION_GRANTED
         ) {
+
             GlobalScope.launch(j2v8Dispatcher) {
-                Log.d(TAG, blockstackSession().loadUserData()?.decentralizedID)
-                SyncUtils.createSyncAccount(this@AccountActivity)
-                onLoaded()
+                val userData = blockstackSession().loadUserData()
+                Log.d(TAG, userData?.decentralizedID)
+                GlobalScope.launch {
+                    SyncUtils.createSyncAccount(this@AccountActivity, getAccountName(userData))
+                    GlobalScope.launch(j2v8Dispatcher) {
+                        onLoaded()
+                    }
+                }
             }
         } else {
             ActivityCompat.requestPermissions(
@@ -185,7 +200,9 @@ class AccountActivity : AppCompatActivity() {
         Log.d(TAG, "onNewIntent")
 
         if (intent?.action == Intent.ACTION_VIEW) {
-            handleAuthResponse(intent)
+            GlobalScope.launch(j2v8Dispatcher) {
+                handleAuthResponse(intent)
+            }
         }
 
     }
