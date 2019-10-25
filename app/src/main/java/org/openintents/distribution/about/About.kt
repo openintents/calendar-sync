@@ -242,7 +242,7 @@ class About : AppCompatActivity() {
             return inflater.inflate(R.layout.oi_distribution_about_info, container, false)
         }
 
-        override fun onAttach(context: Context?) {
+        override fun onAttach(context: Context) {
             super.onAttach(context)
             displayLogo(pkgName)
             displayProgramNameAndVersion(pkgName)
@@ -258,7 +258,7 @@ class About : AppCompatActivity() {
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
             return inflater.inflate(R.layout.oi_distribution_about_credits, container, false)
         }
-        override fun onAttach(context: Context?) {
+        override fun onAttach(context: Context) {
             super.onAttach(context)
             displayAuthors(pkgName)
             displayDocumenters(pkgName)
@@ -272,7 +272,7 @@ class About : AppCompatActivity() {
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
             return inflater.inflate(R.layout.oi_distribution_about_license, container, false)
         }
-        override fun onAttach(context: Context?) {
+        override fun onAttach(context: Context) {
             super.onAttach(context)
           displayLicense(pkgName)
         }
@@ -282,7 +282,7 @@ class About : AppCompatActivity() {
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
             return inflater.inflate(R.layout.oi_distribution_about_recent_changes, container, false)
         }
-        override fun onAttach(context: Context?) {
+        override fun onAttach(context: Context) {
             super.onAttach(context)
             displayRecentChanges(pkgName)
         }
@@ -315,7 +315,7 @@ class About : AppCompatActivity() {
         protected lateinit var mRecentChangesText: TextView
 
 
-        override fun onAttach(context: Context?) {
+        override fun onAttach(context: Context) {
             super.onAttach(context)
             packageManager = context!!.packageManager
             try {

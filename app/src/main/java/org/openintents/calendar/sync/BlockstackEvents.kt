@@ -53,7 +53,7 @@ class BlockstackEvents(
         Log.d(TAG, bsEvent.toString())
     }
 
-    fun save(callback: (Result<String>) -> Unit) {
+    suspend fun save(callback: (Result<String>) -> Unit) {
         val path = eventsResult.blockstackCalendar.data.optString("src")
         if (path != null) {
             blockstackSession.putFile(

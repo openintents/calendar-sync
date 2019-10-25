@@ -17,6 +17,7 @@
 package org.openintents.calendar.sync
 
 import android.accounts.Account
+import android.annotation.SuppressLint
 import android.content.*
 import android.database.Cursor
 import android.graphics.Color
@@ -27,16 +28,16 @@ import android.provider.BaseColumns
 import android.provider.CalendarContract
 import android.text.TextUtils
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
 import org.blockstack.android.sdk.BlockstackSession
-import org.blockstack.android.sdk.Executor
 import org.blockstack.android.sdk.Result
 import org.blockstack.android.sdk.Scope
+import org.blockstack.android.sdk.SessionStore
+import org.blockstack.android.sdk.model.BlockstackConfig
 import org.blockstack.android.sdk.model.GetFileOptions
-import org.blockstack.android.sdk.model.toBlockstackConfig
 import org.json.JSONArray
 import org.json.JSONObject
 import org.openintents.calendar.sync.model.BlockstackCalendar
@@ -46,6 +47,7 @@ import org.xmlpull.v1.XmlPullParserException
 import java.io.IOException
 import java.lang.String.format
 import java.net.MalformedURLException
+import java.net.URI
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.Instant
@@ -58,29 +60,20 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
-val blockstackConfig = "https://cal.openintents.org".toBlockstackConfig(arrayOf(Scope.StoreWrite), redirectPath = "/")
-val j2v8Dispatcher = newSingleThreadContext("j2v8Dispatcher")
-fun executorFactory(context: Context): Executor {
-    return object : Executor {
-        override fun onMainThread(function: (Context) -> Unit) {
-            GlobalScope.launch(Dispatchers.Main) {
-                function(context)
-            }
-        }
+fun String.toBlockstackConfig(
+    scopes: Array<Scope>,
+    redirectPath: String = "/redirect",
+    manifestPath: String = "/manifest.json"
+): BlockstackConfig =
+    BlockstackConfig(
+        URI(this),
+        redirectPath,
+        manifestPath,
+        scopes
+    )
 
-        override fun onNetworkThread(function: suspend () -> Unit) {
-            GlobalScope.launch(j2v8Dispatcher) {
-                function()
-            }
-        }
-
-        override fun onV8Thread(function: () -> Unit) {
-            GlobalScope.launch(j2v8Dispatcher) {
-                function()
-            }
-        }
-    }
-}
+val blockstackConfig =
+    "https://cal.openintents.org".toBlockstackConfig(arrayOf(Scope.StoreWrite), redirectPath = "/")
 
 /**
  * Define a sync adapter for the app.
@@ -95,6 +88,7 @@ fun executorFactory(context: Context): Executor {
  */
 internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
+    private lateinit var sessionStore: SessionStore
     /**
      * Content resolver, for performing database operations.
      */
@@ -122,9 +116,8 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
     fun initValues(context: Context) {
         mContentResolver = context.contentResolver
-        GlobalScope.launch(j2v8Dispatcher) {
-            mBlockstackSession = BlockstackSession(context, blockstackConfig, executor = executorFactory(context))
-        }
+        sessionStore = SessionStoreProvider.getInstance(context)
+        mBlockstackSession = BlockstackSession(sessionStore, blockstackConfig)
 
     }
 
@@ -148,7 +141,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
     ) {
 
         Log.i(TAG, "Beginning network synchronization $extras $authority")
-        GlobalScope.launch(j2v8Dispatcher) {
+        CoroutineScope(Dispatchers.IO).launch {
             val feed = extras.getString("feed")
             val metaFeedOnly = extras.getBoolean("metafeedonly")
             if (feed != null) {
@@ -182,8 +175,9 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                     }
                 }
             }
-            Log.i(TAG, "Network synchronization complete $extras")
         }
+        Log.i(TAG, "Network synchronization complete $extras")
+
     }
 
     suspend fun fetchEvents(uid: String, syncResult: SyncResult): BlockstackEventList? {
@@ -204,14 +198,17 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                             cont.resume(events)
                         } else {
                             Log.e(TAG, "Failed to fetch events: " + it.error)
-                            cont.resumeWithException(IOException(it.error))
+                            cont.resumeWithException(IOException(it.error?.message))
                         }
                     }
                     when (blockstackCalendar.type) {
                         "private" -> {
                             val path = blockstackCalendar.data.optString("src")
                             Log.d(TAG, "events for ${blockstackCalendar.type} from $path")
-                            mBlockstackSession.getFile(path, GetFileOptions(), callback)
+                            CoroutineScope(Dispatchers.IO).launch {
+                                mBlockstackSession.getFile(path, GetFileOptions(), callback)
+                            }
+
                         }
                         "blockstack-user" -> {
                             val path = blockstackCalendar.data.optString("src")
@@ -233,7 +230,6 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                         }
                     }
                 }
-                Log.d(TAG, events.toString())
                 return BlockstackEventList(blockstackCalendar, events)
             } else {
                 Log.e(TAG, "User not logged in")
@@ -261,6 +257,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         return null
     }
 
+    @SuppressLint("MissingPermission")
     private fun getBlockstackCalendar(uid: String): BlockstackCalendar {
         val c = mContentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
@@ -303,11 +300,12 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                             cont.resume(calendars)
                         } else {
                             Log.e(TAG, "Failed to fetch calendars: " + it.error)
-                            cont.resumeWithException(IOException(it.error))
+                            cont.resumeWithException(IOException(it.error?.message))
                         }
                     }
-
-                    mBlockstackSession.getFile("Calendars", GetFileOptions(), callback)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        mBlockstackSession.getFile("Calendars", GetFileOptions(), callback)
+                    }
                 }
                 Log.d(TAG, calendars.toString())
                 return calendars
@@ -375,7 +373,11 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         OperationApplicationException::class,
         ParseException::class
     )
-    private fun updateLocalCalendarList(calendars: JSONArray, account: Account, syncResult: SyncResult) {
+    private fun updateLocalCalendarList(
+        calendars: JSONArray,
+        account: Account,
+        syncResult: SyncResult
+    ) {
 
         val contentResolver = context.contentResolver
 
@@ -421,16 +423,27 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                 entryMap.remove(uid)
                 // Check to see if the entry needs to be updated
                 val existingUri =
-                    asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, account.name, account.type).buildUpon()
+                    asSyncAdapter(
+                        CalendarContract.Calendars.CONTENT_URI,
+                        account.name,
+                        account.type
+                    ).buildUpon()
                         .appendPath(Integer.toString(id)).build()
-                if ((TextUtils.isEmpty(match.optString("name")) && !match.getString("name").equals(displayName)) ||
-                    (TextUtils.isEmpty(match.optString("hexColor")) && match.getString("hexColor").equals(color.toHexColor()))
+                if ((TextUtils.isEmpty(match.optString("name")) && !match.getString("name").equals(
+                        displayName
+                    )) ||
+                    (TextUtils.isEmpty(match.optString("hexColor")) && match.getString("hexColor").equals(
+                        color.toHexColor()
+                    ))
                 ) {
                     // Update existing record
                     Log.i(TAG, "Scheduling update: $existingUri")
                     batch.add(
                         ContentProviderOperation.newUpdate(existingUri)
-                            .withValue(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, match.getString("name"))
+                            .withValue(
+                                CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                                match.getString("name")
+                            )
                             .build()
                     )
 
@@ -441,7 +454,11 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             } else {
                 // Entry doesn't exist. Remove it from the database.
                 val deleteUri =
-                    asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, account.name, account.type).buildUpon()
+                    asSyncAdapter(
+                        CalendarContract.Calendars.CONTENT_URI,
+                        account.name,
+                        account.type
+                    ).buildUpon()
                         .appendPath(Integer.toString(id)).build()
                 Log.i(TAG, "Scheduling delete: $deleteUri")
                 batch.add(ContentProviderOperation.newDelete(deleteUri).build())
@@ -467,8 +484,14 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                     .withValue(CalendarContract.Calendars._SYNC_ID, uid)
                     .withValue(CalendarContract.Calendars.CAL_SYNC1, uid)
                     .withValue(CalendarContract.Calendars.CAL_SYNC2, e.getString("type"))
-                    .withValue(CalendarContract.Calendars.CAL_SYNC3, e.getJSONObject("data").toString())
-                    .withValue(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, e.getString("name"))
+                    .withValue(
+                        CalendarContract.Calendars.CAL_SYNC3,
+                        e.getJSONObject("data").toString()
+                    )
+                    .withValue(
+                        CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+                        e.getString("name")
+                    )
                     .withValue(
                         CalendarContract.Calendars.CALENDAR_COLOR,
                         Color.parseColor(e.optString("hexColor", "#000000"))
@@ -495,7 +518,11 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
     }
 
 
-    private fun updateRemoteEvents(eventsResult: BlockstackEventList, account: Account, syncResult: SyncResult) {
+    private suspend fun updateRemoteEvents(
+        eventsResult: BlockstackEventList,
+        account: Account,
+        syncResult: SyncResult
+    ) {
         val blockstackEvents = BlockstackEvents(eventsResult, mBlockstackSession)
         val calendarId = eventsResult.blockstackCalendar.calendarId
         val contentResolver = context.contentResolver
@@ -504,7 +531,13 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             "(" + CalendarContract.Events.DIRTY + " = ?) AND (" + CalendarContract.Events.CALENDAR_ID + " = ?)"
         var selectionArgs = arrayOf("1", calendarId)
         val curEvent =
-            contentResolver.query(CalendarContract.Events.CONTENT_URI, null, selection, selectionArgs, null)
+            contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                null,
+                selection,
+                selectionArgs,
+                null
+            )
         var eventID: Long
 
         if (curEvent === null) {
@@ -528,7 +561,9 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             eventID = curEvent.getLong(curEvent.getColumnIndex(CalendarContract.Events._ID))
 
             event = LocalEvent(curEvent, contentResolver)
-            eventUri = CalendarContract.Events.CONTENT_URI.buildUpon().appendPath(eventID.toString()).build()
+            eventUri =
+                CalendarContract.Events.CONTENT_URI.buildUpon().appendPath(eventID.toString())
+                    .build()
             syncId = curEvent.getString(curEvent.getColumnIndex(CalendarContract.Events._SYNC_ID))
 
             var Deleted = false
@@ -646,7 +681,11 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         OperationApplicationException::class,
         ParseException::class
     )
-    private fun updateLocalEvents(eventsResult: BlockstackEventList, account: Account, syncResult: SyncResult) {
+    private fun updateLocalEvents(
+        eventsResult: BlockstackEventList,
+        account: Account,
+        syncResult: SyncResult
+    ) {
 
         val events = eventsResult.events
         val calendarId = eventsResult.blockstackCalendar.calendarId
@@ -693,15 +732,29 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                 entryMap.remove(localEvent.uid)
                 // Check to see if the entry needs to be updated
                 val existingUri =
-                    asSyncAdapter(CalendarContract.Events.CONTENT_URI, account.name, account.type).buildUpon()
+                    asSyncAdapter(
+                        CalendarContract.Events.CONTENT_URI,
+                        account.name,
+                        account.type
+                    ).buildUpon()
                         .appendPath(localEventId).build()
 
                 if (needsUpdate(localEvent, match)) {
                     // Update existing record
                     Log.i(TAG, "Scheduling update: $existingUri")
                     batch.add(newUpdateEventOperation(existingUri, match))
-                    batch.addAll(remindersOperations(localEventId, remindersFrom(localEventId, match)))
-                    batch.addAll(attendeesOperations(localEventId, attendeesFrom(localEventId, match)))
+                    batch.addAll(
+                        remindersOperations(
+                            localEventId,
+                            remindersFrom(localEventId, match)
+                        )
+                    )
+                    batch.addAll(
+                        attendeesOperations(
+                            localEventId,
+                            attendeesFrom(localEventId, match)
+                        )
+                    )
                     syncResult.stats.numUpdates++
                 } else {
                     Log.i(TAG, "No action: $existingUri")
@@ -709,7 +762,11 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             } else {
                 // Entry doesn't exist. Remove it from the database.
                 val deleteUri =
-                    asSyncAdapter(CalendarContract.Events.CONTENT_URI, account.name, account.type).buildUpon()
+                    asSyncAdapter(
+                        CalendarContract.Events.CONTENT_URI,
+                        account.name,
+                        account.type
+                    ).buildUpon()
                         .appendPath(Integer.toString(localEvent.id)).build()
                 Log.i(TAG, "Scheduling delete: $deleteUri")
                 batch.add(ContentProviderOperation.newDelete(deleteUri).build())
@@ -731,8 +788,10 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         }
         Log.i(TAG, "Merge solution ready. Applying batch update")
         for (b in batch) {
-            Log.d(TAG, "${b.uri} ${b}")
-            mContentResolver.applyBatch(CalendarContract.Events.CONTENT_URI.authority!!, arrayListOf(b))
+            mContentResolver.applyBatch(
+                CalendarContract.Events.CONTENT_URI.authority!!,
+                arrayListOf(b)
+            )
         }
 
         batch.clear()
@@ -746,15 +805,21 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                     "-no guests-"
                 ) + e.optBoolean("reminderEnabled", false)
             )
-            localEventId = getLocalEventIdFor(uid)
-            batch.addAll(remindersOperations(localEventId, remindersFrom(localEventId, e)))
-            batch.addAll(attendeesOperations(localEventId, attendeesFrom(localEventId, e)))
-            syncResult.stats.numInserts++
+            val eventId = getLocalEventIdFor(uid)
+            if (eventId != null) {
+                localEventId = eventId
+                batch.addAll(remindersOperations(localEventId, remindersFrom(localEventId, e)))
+                batch.addAll(attendeesOperations(localEventId, attendeesFrom(localEventId, e)))
+                syncResult.stats.numInserts++
+            }
         }
 
         for (b in batch) {
             Log.d(TAG, "${b.uri} ${b}")
-            mContentResolver.applyBatch(CalendarContract.Events.CONTENT_URI.authority!!, arrayListOf(b))
+            mContentResolver.applyBatch(
+                CalendarContract.Events.CONTENT_URI.authority!!,
+                arrayListOf(b)
+            )
         }
 
         mContentResolver.notifyChange(
@@ -763,15 +828,20 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         )
     }
 
-    private fun getLocalEventIdFor(uid: String): String {
+    @SuppressLint("MissingPermission")
+    private fun getLocalEventIdFor(uid: String): String? {
         val c = mContentResolver.query(
             CalendarContract.Events.CONTENT_URI, arrayOf(CalendarContract.Events._ID),
             "${CalendarContract.Events._SYNC_ID} = ?", arrayOf(uid), null
         )
-        c.moveToFirst()
-        val localEventId = c.getString(0)
-        c.close()
-        return localEventId
+        if (c != null) {
+            c.moveToFirst()
+            val localEventId = c.getString(0)
+            c.close()
+            return localEventId
+        } else {
+            return null
+        }
     }
 
     private fun remindersFrom(eventId: String, match: JSONObject): List<ContentValues> {
@@ -926,11 +996,10 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         return true
     }
 
+    @SuppressLint("MissingPermission")
     private fun logCalendars(contentResolver: ContentResolver) {
-
         Log.i(TAG, "Fetching local entries for merge")
-        val uri = CalendarContract.Calendars.CONTENT_URI
-        val c = contentResolver.query(uri, CALENDAR_PROJECTION, null, null, null)!!
+        val c = contentResolver.query(CalendarContract.Calendars.CONTENT_URI, CALENDAR_PROJECTION, null, null, null)!!
         Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
 
         // Find stale data
@@ -950,6 +1019,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             color = c.getInt(COLUMN_COLOR)
             Log.d(TAG, format("%s %s %s %s", id, accountName, displayName, color.toHexColor()))
         }
+        c.close()
     }
 
     companion object {
@@ -970,8 +1040,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
         fun format(dateTime: Long): String {
             val zoneId = ZoneId.of("Z")
-            val localDateTime
-                    = LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime), zoneId)
+            val localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime), zoneId)
             return localDateTime.format(format)
         }
 

@@ -23,12 +23,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
-import kotlinx.coroutines.runBlocking
 import org.blockstack.android.sdk.BlockstackSession
 import org.openintents.calendar.sync.AccountActivity
+import org.openintents.calendar.sync.SessionStoreProvider
 import org.openintents.calendar.sync.blockstackConfig
-import org.openintents.calendar.sync.executorFactory
-import org.openintents.calendar.sync.j2v8Dispatcher
 
 class GenericAccountService : Service() {
     private var mAuthenticator: Authenticator? = null
@@ -46,7 +44,8 @@ class GenericAccountService : Service() {
         return mAuthenticator!!.iBinder
     }
 
-    inner class Authenticator(private val context: Context) : AbstractAccountAuthenticator(context) {
+    inner class Authenticator(private val context: Context) :
+        AbstractAccountAuthenticator(context) {
 
         override fun editProperties(
             accountAuthenticatorResponse: AccountAuthenticatorResponse,
@@ -58,10 +57,16 @@ class GenericAccountService : Service() {
         @Throws(NetworkErrorException::class)
         override fun addAccount(
             accountAuthenticatorResponse: AccountAuthenticatorResponse,
-            accountType: String, authTokenType: String?, requiredFeatures: Array<String>?, options: Bundle
+            accountType: String,
+            authTokenType: String?,
+            requiredFeatures: Array<String>?,
+            options: Bundle
         ): Bundle? {
             val b = Bundle()
-            b.putParcelable(AccountManager.KEY_INTENT, Intent(context, AccountActivity::class.java).putExtra("action", "addAccount"))
+            b.putParcelable(
+                AccountManager.KEY_INTENT,
+                Intent(context, AccountActivity::class.java).putExtra("action", "addAccount")
+            )
             return b
         }
 
@@ -106,13 +111,13 @@ class GenericAccountService : Service() {
         private val TAG = "GenericAccountService"
         fun getAccount(context: Context, accountType: String): Account? {
 
-            var accountName:String? = null
-            runBlocking(j2v8Dispatcher) {
-               val blockstack = BlockstackSession(context, blockstackConfig, executor = executorFactory(context))
-                if (blockstack.isUserSignedIn()) {
-                    accountName = blockstack.loadUserData()?.json?.getString("username")
-                }
+            var accountName: String? = null
+            val sessionStore = SessionStoreProvider.getInstance(context)
+            val blockstack = BlockstackSession(sessionStore, blockstackConfig)
+            if (blockstack.isUserSignedIn()) {
+                accountName = blockstack.loadUserData().json.getString("username")
             }
+
             if (accountName != null) {
                 return Account(accountName, accountType)
             } else {

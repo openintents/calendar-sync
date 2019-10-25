@@ -17,11 +17,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.PermissionChecker
+import androidx.lifecycle.lifecycleScope
 import kotlinx.android.synthetic.main.activity_account.*
 import kotlinx.android.synthetic.main.content_account.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.blockstack.android.sdk.BlockstackSession
+import org.blockstack.android.sdk.BlockstackSignIn
 import org.blockstack.android.sdk.model.UserData
 import org.json.JSONObject.NULL
 import org.openintents.distribution.about.About
@@ -29,6 +32,7 @@ import org.openintents.distribution.about.About
 
 class AccountActivity : AppCompatActivity() {
 
+    private lateinit var blockstackSignIn: BlockstackSignIn
     private lateinit var progressTexts: Array<String>
     private var currentUserData: UserData? = null
     private val TAG = AccountActivity::class.java.simpleName
@@ -67,39 +71,35 @@ class AccountActivity : AppCompatActivity() {
         progressHandler.postDelayed(progressUpdate, 0)
 
         accountDomain.text = blockstackConfig.appDomain.authority
-        blockstackHelp.text = getString(R.string.blockstack_help, blockstackConfig.appDomain.authority)
+        blockstackHelp.text =
+            getString(R.string.blockstack_help, blockstackConfig.appDomain.authority)
 
-        GlobalScope.launch(j2v8Dispatcher) {
-            _blockstackSession = BlockstackSession(
-                this@AccountActivity,
-                blockstackConfig,
-                executor = executorFactory(this@AccountActivity)
-            )
-            if (intent?.action == Intent.ACTION_VIEW) {
-                progressTexts = resources.getStringArray(R.array.login_texts)
-                handleAuthResponse(intent)
-            } else {
-                onLoaded()
-            }
+        val sessionStore = SessionStoreProvider.getInstance(this)
+        _blockstackSession = BlockstackSession(
+            sessionStore,
+            blockstackConfig
+        )
+        blockstackSignIn = BlockstackSignIn(sessionStore, blockstackConfig)
+        if (intent?.action == Intent.ACTION_VIEW) {
+            progressTexts = resources.getStringArray(R.array.login_texts)
+            handleAuthResponse(intent)
+        } else {
+            onLoaded()
         }
 
 
 
-        signInButton.setOnClickListener { _ ->
-            GlobalScope.launch(j2v8Dispatcher) {
-                blockstackSession().redirectUserToSignIn { _ ->
-                    Log.d(TAG, "signed in error!")
-                }
+        signInButton.setOnClickListener {
+            lifecycleScope.launch(Dispatchers.IO) {
+                blockstackSignIn.redirectUserToSignIn(this@AccountActivity)
             }
         }
 
         signOutButton.setOnClickListener {
             SyncUtils.removeAccount(this, getAccountName(currentUserData))
-            GlobalScope.launch(j2v8Dispatcher) {
-                blockstackSession().signUserOut()
-                Log.d(TAG, "signed out!")
-                onLoaded()
-            }
+            blockstackSession().signUserOut()
+            Log.d(TAG, "signed out!")
+            onLoaded()
         }
 
         calendarButton.setOnClickListener {
@@ -124,7 +124,10 @@ class AccountActivity : AppCompatActivity() {
         syncNowButton.setOnClickListener {
             GlobalScope.launch {
                 // sync account should have been created already
-                val account = SyncUtils.createSyncAccount(this@AccountActivity, getAccountName(currentUserData))
+                val account = SyncUtils.createSyncAccount(
+                    this@AccountActivity,
+                    getAccountName(currentUserData)
+                )
                 if (account != null) {
                     SyncUtils.triggerRefresh(account)
                 }
@@ -176,16 +179,10 @@ class AccountActivity : AppCompatActivity() {
             ) == PermissionChecker.PERMISSION_GRANTED
         ) {
 
-            GlobalScope.launch(j2v8Dispatcher) {
-                val userData = blockstackSession().loadUserData()
-                Log.d(TAG, userData?.decentralizedID)
-                GlobalScope.launch {
-                    SyncUtils.createSyncAccount(this@AccountActivity, getAccountName(userData))
-                    GlobalScope.launch(j2v8Dispatcher) {
-                        onLoaded()
-                    }
-                }
-            }
+            val userData = blockstackSession().loadUserData()
+            Log.d(TAG, userData.decentralizedID)
+            SyncUtils.createSyncAccount(this@AccountActivity, getAccountName(userData))
+            onLoaded()
         } else {
             ActivityCompat.requestPermissions(
                 this,
@@ -200,9 +197,7 @@ class AccountActivity : AppCompatActivity() {
         Log.d(TAG, "onNewIntent")
 
         if (intent?.action == Intent.ACTION_VIEW) {
-            GlobalScope.launch(j2v8Dispatcher) {
-                handleAuthResponse(intent)
-            }
+            handleAuthResponse(intent)
         }
 
     }
@@ -213,16 +208,22 @@ class AccountActivity : AppCompatActivity() {
         if (response != null) {
             val authResponse = response.getQueryParameter("authResponse")
             Log.d(TAG, "authResponse: ${authResponse}")
-            blockstackSession().handlePendingSignIn(authResponse ?: "") {
-                if (it.hasErrors) {
-                    runOnUiThread {
-                        Toast.makeText(this, it.error, Toast.LENGTH_SHORT).show()
-                    }
-                    onLoaded()
-                } else {
-                    Log.d(TAG, "signed in!")
-                    runOnUiThread {
-                        onSignIn()
+            lifecycleScope.launch(Dispatchers.IO) {
+                blockstackSession().handlePendingSignIn(authResponse ?: "") {
+                    if (it.hasErrors) {
+                        runOnUiThread {
+                            Toast.makeText(
+                                this@AccountActivity,
+                                it.error?.message ?: "Sign in failed :-/",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        onLoaded()
+                    } else {
+                        Log.d(TAG, "signed in!")
+                        runOnUiThread {
+                            onSignIn()
+                        }
                     }
                 }
             }
@@ -250,7 +251,11 @@ class AccountActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             for (grantResult in grantResults) {
                 if (grantResult != PermissionChecker.PERMISSION_GRANTED) {
