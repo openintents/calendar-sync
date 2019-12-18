@@ -31,14 +31,14 @@
  */
 package net.fortuna.ical4j.model.component;
 
+import android.util.Log;
+
 import net.fortuna.ical4j.model.*;
 import net.fortuna.ical4j.model.parameter.Value;
 import net.fortuna.ical4j.model.property.*;
 import net.fortuna.ical4j.util.Dates;
 import net.fortuna.ical4j.util.TimeZones;
 import net.fortuna.ical4j.validate.ValidationException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -58,6 +58,7 @@ import java.util.List;
  */
 public abstract class Observance extends Component {
 
+    private static final String TAG = Observance.class.getSimpleName();
     /**
      *
      */
@@ -157,8 +158,8 @@ public abstract class Observance extends Component {
         try {
             initialOnsetUTC = calculateOnset(((DtStart) getProperty(Property.DTSTART)).getDate());
         } catch (ParseException e) {
-            Logger log = LoggerFactory.getLogger(Observance.class);
-            log.error("Unexpected error calculating initial onset", e);
+
+            Log.e(TAG,"Unexpected error calculating initial onset", e);
             // XXX: is this correct?
             return null;
         }
@@ -182,8 +183,8 @@ public abstract class Observance extends Component {
                      */
                     cacheableOnsets.add(rdateOnset);
                 } catch (ParseException e) {
-                    Logger log = LoggerFactory.getLogger(Observance.class);
-                    log.error("Unexpected error calculating onset", e);
+
+                    Log.e(TAG, "Unexpected error calculating onset", e);
                 }
             }
         }

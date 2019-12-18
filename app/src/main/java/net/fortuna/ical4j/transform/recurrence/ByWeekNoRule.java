@@ -3,8 +3,6 @@ package net.fortuna.ical4j.transform.recurrence;
 import net.fortuna.ical4j.model.*;
 import net.fortuna.ical4j.model.Recur.Frequency;
 import net.fortuna.ical4j.util.Dates;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Calendar;
@@ -15,8 +13,6 @@ import java.util.Optional;
  * specified the date list is returned unmodified.
  */
 public class ByWeekNoRule extends AbstractDateExpansionRule {
-
-    private transient Logger log = LoggerFactory.getLogger(ByWeekNoRule.class);
 
     private final NumberList weekNoList;
 
@@ -41,9 +37,6 @@ public class ByWeekNoRule extends AbstractDateExpansionRule {
             final int numWeeksInYear = initCal.getActualMaximum(Calendar.WEEK_OF_YEAR);
             for (final Integer weekNo : weekNoList) {
                 if (weekNo == 0 || weekNo < -Dates.MAX_WEEKS_PER_YEAR || weekNo > Dates.MAX_WEEKS_PER_YEAR) {
-                    if (log.isTraceEnabled()) {
-                        log.trace("Invalid week of year: " + weekNo);
-                    }
                     continue;
                 }
                 final Calendar cal = getCalendarInstance(date, true);
@@ -72,6 +65,5 @@ public class ByWeekNoRule extends AbstractDateExpansionRule {
      */
     private void readObject(final java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
-        log = LoggerFactory.getLogger(Recur.class);
     }
 }

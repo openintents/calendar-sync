@@ -5,8 +5,6 @@ import net.fortuna.ical4j.model.*;
 import net.fortuna.ical4j.model.Recur.Frequency;
 import net.fortuna.ical4j.model.parameter.Value;
 import net.fortuna.ical4j.util.Dates;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Calendar;
@@ -21,8 +19,6 @@ import static net.fortuna.ical4j.model.Recur.Frequency.YEARLY;
  * specified the date list is returned unmodified.
  */
 public class ByMonthDayRule extends AbstractDateExpansionRule {
-
-    private transient Logger log = LoggerFactory.getLogger(ByMonthDayRule.class);
 
     private final NumberList monthDayList;
 
@@ -82,9 +78,6 @@ public class ByMonthDayRule extends AbstractDateExpansionRule {
             // construct a list of possible month days..
             for (final int monthDay : monthDayList) {
                 if (monthDay == 0 || monthDay < -Dates.MAX_DAYS_PER_MONTH || monthDay > Dates.MAX_DAYS_PER_MONTH) {
-                    if (log.isTraceEnabled()) {
-                        log.trace("Invalid day of month: " + monthDay);
-                    }
                     continue;
                 }
                 final int numDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
@@ -113,6 +106,5 @@ public class ByMonthDayRule extends AbstractDateExpansionRule {
      */
     private void readObject(final java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
-        log = LoggerFactory.getLogger(Recur.class);
     }
 }

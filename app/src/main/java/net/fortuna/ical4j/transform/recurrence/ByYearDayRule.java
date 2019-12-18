@@ -4,8 +4,6 @@ import net.fortuna.ical4j.model.*;
 import net.fortuna.ical4j.model.Recur.Frequency;
 import net.fortuna.ical4j.model.parameter.Value;
 import net.fortuna.ical4j.util.Dates;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,8 +19,6 @@ import static net.fortuna.ical4j.model.Recur.Frequency.YEARLY;
  * specified the date list is returned unmodified.
  */
 public class ByYearDayRule extends AbstractDateExpansionRule {
-
-    private transient Logger log = LoggerFactory.getLogger(ByYearDayRule.class);
 
     private final NumberList yearDayList;
 
@@ -82,9 +78,6 @@ public class ByYearDayRule extends AbstractDateExpansionRule {
             // construct a list of possible year days..
             for (final int yearDay : yearDayList) {
                 if (yearDay == 0 || yearDay < -Dates.MAX_DAYS_PER_YEAR || yearDay > Dates.MAX_DAYS_PER_YEAR) {
-                    if (log.isTraceEnabled()) {
-                        log.trace("Invalid day of year: " + yearDay);
-                    }
                     continue;
                 }
                 final int numDaysInYear = cal.getActualMaximum(Calendar.DAY_OF_YEAR);
@@ -113,6 +106,5 @@ public class ByYearDayRule extends AbstractDateExpansionRule {
      */
     private void readObject(final java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
-        log = LoggerFactory.getLogger(Recur.class);
     }
 }

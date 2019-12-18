@@ -7,14 +7,15 @@
  */
 package net.fortuna.ical4j.transform.rfc5545;
 
+import android.util.Log;
+
 import net.fortuna.ical4j.model.DefaultTimeZoneRegistryFactory;
 import net.fortuna.ical4j.model.Parameter;
 import net.fortuna.ical4j.model.Property;
 import net.fortuna.ical4j.model.TimeZoneRegistry;
+import net.fortuna.ical4j.model.TimeZoneRegistryImpl;
 import net.fortuna.ical4j.model.parameter.TzId;
 import net.fortuna.ical4j.model.property.DateProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.text.ParseException;
 import java.util.HashMap;
@@ -36,7 +37,6 @@ class TzHelper {
     private static final TimeZoneRegistry TIMEZONE_REGISTRY = DefaultTimeZoneRegistryFactory.getInstance()
             .createRegistry();
 
-    private static final Logger LOG = LoggerFactory.getLogger(TzHelper.class);
     static {
         initMsTimezones();
     }
@@ -51,7 +51,7 @@ class TzHelper {
                 MS_TIMEZONE_IDS.put(displayNameAndMsTzId[1], standardTzId);
             }
         } catch (RuntimeException e) { // avoid NoClassDefFoundError
-            LOG.error("Could not load MS timezones", e);
+            Log.e(TzHelper.class.getSimpleName(), "Could not load MS timezones", e);
             throw new RuntimeException("Unable to load resource file " + MS_TIMEZONES_FILE, e);
         }
     }
@@ -77,7 +77,7 @@ class TzHelper {
                 try {
                     property.setValue(value);
                 } catch (ParseException e) {
-                    LOG.warn("Failed to reset property value", e);
+                    Log.w(TzHelper.class.getSimpleName(),"Failed to reset property value", e);
                 }
             } else {
                 property.setUtc(true);

@@ -31,9 +31,9 @@
  */
 package net.fortuna.ical4j.model;
 
+import android.util.Log;
+
 import net.fortuna.ical4j.util.ResourceLoader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,14 +69,14 @@ public class TimeZoneRegistryImpl implements TimeZoneRegistry {
             aliasInputStream = ResourceLoader.getResourceAsStream("net/fortuna/ical4j/model/tz.alias");
             ALIASES.load(aliasInputStream);
         } catch (IOException ioe) {
-            LoggerFactory.getLogger(TimeZoneRegistryImpl.class).warn(
+            Log.w(TimeZoneRegistryImpl.class.getSimpleName(),
                     "Error loading timezone aliases: " + ioe.getMessage());
         } finally {
             if (aliasInputStream != null) {
                 try {
                     aliasInputStream.close();
                 } catch (IOException e) {
-                    LoggerFactory.getLogger(TimeZoneRegistryImpl.class).warn(
+                    Log.w(TimeZoneRegistryImpl.class.getSimpleName(),
                             "Error closing resource stream: " + e.getMessage());
                 }
             }
@@ -86,14 +86,14 @@ public class TimeZoneRegistryImpl implements TimeZoneRegistry {
             aliasInputStream = ResourceLoader.getResourceAsStream("tz.alias");
             ALIASES.load(aliasInputStream);
         } catch (IOException | NullPointerException e) {
-            LoggerFactory.getLogger(TimeZoneRegistryImpl.class).debug(
+            Log.d(TimeZoneRegistryImpl.class.getSimpleName(),
                     "Error loading custom timezone aliases: " + e.getMessage());
         } finally {
             if (aliasInputStream != null) {
                 try {
                     aliasInputStream.close();
                 } catch (IOException e) {
-                    LoggerFactory.getLogger(TimeZoneRegistryImpl.class).warn(
+                    Log.w(TimeZoneRegistryImpl.class.getSimpleName(),
                             "Error closing resource stream: " + e.getMessage());
                 }
             }
@@ -131,8 +131,7 @@ public class TimeZoneRegistryImpl implements TimeZoneRegistry {
      */
     public final void register(final TimeZone timezone, boolean update) {
         if (update) {
-            Logger log = LoggerFactory.getLogger(TimeZoneRegistryImpl.class);
-            log.warn("Error occurred loading VTimeZone");
+            Log.w(TimeZoneRegistryImpl.class.getSimpleName(), "Error occurred loading VTimeZone");
         } else {
             timezones.put(timezone.getID(), timezone);
         }

@@ -31,8 +31,6 @@
  */
 package net.fortuna.ical4j.model;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.text.FieldPosition;
 import java.text.NumberFormat;
@@ -51,7 +49,6 @@ import java.util.TimeZone;
  * @see #getInstance(String)
  */
 public final class CalendarDateFormatFactory {
-    private static final Logger LOG = LoggerFactory.getLogger(CalendarDateFormatFactory.class);
 
     private static final String DATETIME_PATTERN = "yyyyMMdd'T'HHmmss";
     private static final String DATETIME_UTC_PATTERN = "yyyyMMdd'T'HHmmss'Z'";
@@ -87,10 +84,6 @@ public final class CalendarDateFormatFactory {
         } else if (pattern.equals(TIME_PATTERN) || pattern.equals(TIME_UTC_PATTERN)) {
             instance = new TimeFormat(pattern);
         } else {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("unexpected date format pattern: " + pattern);
-            }
-
             instance = new SimpleDateFormat(pattern);
         }
         return instance;

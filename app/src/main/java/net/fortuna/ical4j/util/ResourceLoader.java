@@ -31,8 +31,8 @@
  */
 package net.fortuna.ical4j.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import android.util.Log;
 
 import java.io.InputStream;
 import java.net.URL;
@@ -41,9 +41,7 @@ import java.net.URL;
  * @author fortuna
  */
 public class ResourceLoader {
-
-    private static final Logger LOG = LoggerFactory.getLogger(ResourceLoader.class);
-
+    private static final String TAG = ResourceLoader.class.getSimpleName();
     /**
      * Load a resource via the thread context classloader. If security permissions don't allow
      * this fallback to loading via current classloader.
@@ -58,7 +56,7 @@ public class ResourceLoader {
                 resource = Thread.currentThread().getContextClassLoader().getResource(name);
             }
         } catch (SecurityException e) {
-            LOG.info("Unable to access context classloader, using default. " + e.getMessage());
+            Log.i(TAG, "Unable to access context classloader, using default. " + e.getMessage());
         }
         if (resource == null) {
             resource = ResourceLoader.class.getResource("/" + name);
@@ -78,7 +76,7 @@ public class ResourceLoader {
         try {
             stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(name);
         } catch (SecurityException e) {
-            LOG.info("Unable to access context classloader, using default. " + e.getMessage());
+            Log.i(TAG, "Unable to access context classloader, using default. " + e.getMessage());
         }
         if (stream == null) {
             stream = ResourceLoader.class.getResourceAsStream("/" + name);

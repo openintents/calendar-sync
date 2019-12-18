@@ -36,8 +36,6 @@ import net.fortuna.ical4j.transform.Transformer;
 import net.fortuna.ical4j.transform.recurrence.*;
 import net.fortuna.ical4j.util.CompatibilityHints;
 import net.fortuna.ical4j.util.Dates;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -151,8 +149,6 @@ public class Recur implements Serializable {
     static {
         maxIncrementCount = 1000;
     }
-
-    private transient Logger log = LoggerFactory.getLogger(Recur.class);
 
     private Frequency frequency;
 
@@ -916,33 +912,21 @@ public class Recur implements Serializable {
         if (transformers.get(BYMONTH) != null) {
             dates = transformers.get(BYMONTH).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYMONTH processing: " + dates);
-            }
         }
 
         if (transformers.get(BYWEEKNO) != null) {
             dates = transformers.get(BYWEEKNO).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYWEEKNO processing: " + dates);
-            }
         }
 
         if (transformers.get(BYYEARDAY) != null) {
             dates = transformers.get(BYYEARDAY).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYYEARDAY processing: " + dates);
-            }
         }
 
         if (transformers.get(BYMONTHDAY) != null) {
             dates = transformers.get(BYMONTHDAY).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYMONTHDAY processing: " + dates);
-            }
         } else if (frequency == Frequency.MONTHLY || (frequency == Frequency.YEARLY && yearDayList.isEmpty()
                 && weekNoList.isEmpty() && dayList.isEmpty())) {
 
@@ -955,9 +939,6 @@ public class Recur implements Serializable {
         if (transformers.get(BYDAY) != null) {
             dates = transformers.get(BYDAY).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYDAY processing: " + dates);
-            }
         } else if (frequency == Frequency.WEEKLY || (frequency == Frequency.YEARLY && yearDayList.isEmpty()
                 && !weekNoList.isEmpty() && monthDayList.isEmpty())) {
 
@@ -969,33 +950,21 @@ public class Recur implements Serializable {
         if (transformers.get(BYHOUR) != null) {
             dates = transformers.get(BYHOUR).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYHOUR processing: " + dates);
-            }
         }
 
         if (transformers.get(BYMINUTE) != null) {
             dates = transformers.get(BYMINUTE).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYMINUTE processing: " + dates);
-            }
         }
 
         if (transformers.get(BYSECOND) != null) {
             dates = transformers.get(BYSECOND).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after BYSECOND processing: " + dates);
-            }
         }
 
         if (transformers.get(BYSETPOS) != null) {
             dates = transformers.get(BYSETPOS).transform(dates);
             // debugging..
-            if (log.isDebugEnabled()) {
-                log.debug("Dates after SETPOS processing: " + dates);
-            }
         }
         return dates;
     }
@@ -1088,7 +1057,6 @@ public class Recur implements Serializable {
      */
     private void readObject(final java.io.ObjectInputStream stream) throws IOException, ClassNotFoundException {
         stream.defaultReadObject();
-        log = LoggerFactory.getLogger(Recur.class);
     }
 
     /**
