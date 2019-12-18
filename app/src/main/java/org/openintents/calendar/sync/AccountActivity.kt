@@ -129,7 +129,28 @@ class AccountActivity : AppCompatActivity() {
                     getAccountName(currentUserData)
                 )
                 if (account != null) {
-                    SyncUtils.triggerRefresh(account)
+                    try {
+                        val c = contentResolver.query(
+                            CalendarContract.Events.CONTENT_URI,
+                            arrayOf(CalendarContract.Events._ID, CalendarContract.Events._SYNC_ID),
+                            "${CalendarContract.Events.DIRTY} = ?",
+                            arrayOf("1"),
+                            null
+                        )
+                        if (c?.count == 0) {
+                            SyncUtils.triggerRefresh(account)
+                        } else {
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this@AccountActivity,
+                                    "Unsynced changes",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    } catch (e:SecurityException) {
+                        Log.w(TAG, "failed to check dirty events", e)
+                    }
                 }
             }
         }
@@ -209,21 +230,20 @@ class AccountActivity : AppCompatActivity() {
             val authResponse = response.getQueryParameter("authResponse")
             Log.d(TAG, "authResponse: ${authResponse}")
             lifecycleScope.launch(Dispatchers.IO) {
-                blockstackSession().handlePendingSignIn(authResponse ?: "") {
-                    if (it.hasErrors) {
-                        runOnUiThread {
-                            Toast.makeText(
-                                this@AccountActivity,
-                                it.error?.message ?: "Sign in failed :-/",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        onLoaded()
-                    } else {
-                        Log.d(TAG, "signed in!")
-                        runOnUiThread {
-                            onSignIn()
-                        }
+                val it = blockstackSession().handlePendingSignIn(authResponse ?: "")
+                if (it.hasErrors) {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@AccountActivity,
+                            it.error?.message ?: "Sign in failed :-/",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    onLoaded()
+                } else {
+                    Log.d(TAG, "signed in!")
+                    runOnUiThread {
+                        onSignIn()
                     }
                 }
             }

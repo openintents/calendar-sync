@@ -1,5 +1,6 @@
 package org.openintents.calendar.sync
 
+import android.text.TextUtils
 import android.util.Log
 import org.blockstack.android.sdk.BlockstackSession
 import org.blockstack.android.sdk.Result
@@ -53,15 +54,20 @@ class BlockstackEvents(
         Log.d(TAG, bsEvent.toString())
     }
 
-    suspend fun save(callback: (Result<String>) -> Unit) {
+    suspend fun save(callback: (Result<out String>) -> Unit) {
         val path = eventsResult.blockstackCalendar.data.optString("src")
-        if (path != null) {
-            blockstackSession.putFile(
-                path,
-                eventsResult.events.toString(),
-                PutFileOptions(contentType = "application/json"),
-                callback
-            )
+        if (!TextUtils.isEmpty(path)) {
+            try {
+                val result = blockstackSession.putFile(
+                    path,
+                    eventsResult.events.toString(),
+                    PutFileOptions(contentType = "application/json")
+                )
+                callback(result)
+            } catch (e: Exception) {
+                Log.e(TAG, "failed to save events", e)
+            }
+
         } else {
             Log.d(TAG, "No src found in ${eventsResult.blockstackCalendar.data}")
         }

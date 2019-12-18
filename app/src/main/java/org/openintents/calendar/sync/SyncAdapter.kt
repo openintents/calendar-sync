@@ -28,14 +28,10 @@ import android.provider.BaseColumns
 import android.provider.CalendarContract
 import android.text.TextUtils
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.blockstack.android.sdk.BlockstackSession
-import org.blockstack.android.sdk.Result
-import org.blockstack.android.sdk.Scope
-import org.blockstack.android.sdk.SessionStore
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import kotlinx.coroutines.*
+import org.blockstack.android.sdk.*
 import org.blockstack.android.sdk.model.BlockstackConfig
 import org.blockstack.android.sdk.model.GetFileOptions
 import org.json.JSONArray
@@ -73,7 +69,10 @@ fun String.toBlockstackConfig(
     )
 
 val blockstackConfig =
-    "https://cal.openintents.org".toBlockstackConfig(arrayOf(Scope.StoreWrite), redirectPath = "/")
+    "https://cal.openintents.org".toBlockstackConfig(
+        arrayOf(BaseScope.StoreWrite.scope),
+        redirectPath = "/"
+    )
 
 /**
  * Define a sync adapter for the app.
@@ -144,11 +143,13 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         CoroutineScope(Dispatchers.IO).launch {
             val feed = extras.getString("feed")
             val metaFeedOnly = extras.getBoolean("metafeedonly")
+            val upload = extras.getBoolean("upload")
+
             if (feed != null) {
                 // sync calendar events for one calendar
                 val result = fetchEvents(feed, syncResult)
                 if (result != null) {
-                    if (extras.getBoolean("upload")) {
+                    if (upload) {
                         updateRemoteEvents(result, account, syncResult)
                     } else {
                         updateLocalEvents(result, account, syncResult)
@@ -156,6 +157,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                 }
             } else {
                 // sync calendar list
+
                 val calendars = fetchCalendars(syncResult)
                 if (calendars != null) {
                     updateLocalCalendarList(calendars, account, syncResult)
@@ -165,7 +167,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                             val feed = calendar.getString("uid")
                             val result = fetchEvents(feed, syncResult)
                             if (result != null) {
-                                if (extras.getBoolean("upload")) {
+                                if (upload) {
                                     updateRemoteEvents(result, account, syncResult)
                                 } else {
                                     updateLocalEvents(result, account, syncResult)
@@ -180,7 +182,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
 
     }
 
-    suspend fun fetchEvents(uid: String, syncResult: SyncResult): BlockstackEventList? {
+    private suspend fun fetchEvents(uid: String, syncResult: SyncResult): BlockstackEventList? {
         try {
             if (mBlockstackSession.isUserSignedIn()) {
                 val blockstackCalendar = getBlockstackCalendar(uid)
@@ -190,7 +192,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                 }
 
                 val events = suspendCoroutine<JSONObject> { cont ->
-                    val callback: (Result<Any>) -> Unit = {
+                    val callback: (Result<out Any>) -> Unit = {
                         if (it.hasValue) {
                             val eventsAsString = it.value as String
                             Log.d(TAG, "events from gaia\n$eventsAsString")
@@ -206,13 +208,17 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                             val path = blockstackCalendar.data.optString("src")
                             Log.d(TAG, "events for ${blockstackCalendar.type} from $path")
                             CoroutineScope(Dispatchers.IO).launch {
-                                mBlockstackSession.getFile(path, GetFileOptions(), callback)
+                                val result = mBlockstackSession.getFile(path, GetFileOptions())
+                                callback(result)
                             }
 
                         }
                         "blockstack-user" -> {
                             val path = blockstackCalendar.data.optString("src")
-                            Log.d(TAG, "events for ${blockstackCalendar.type} from $path ignored")
+                            Log.d(
+                                TAG,
+                                "events for ${blockstackCalendar.type} from $path ignored"
+                            )
                             /*mBlockstackSession.getFile(
                                 path,
                                 GetFileOptions(username = data.optString("user"), decrypt = false),
@@ -267,9 +273,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             null
         )
         if (c == null || !c.moveToFirst()) {
-            if (c != null) {
-                c.close()
-            }
+            c?.close()
             return InvalidBlockstackCalendar("User not logged in")
         }
 
@@ -280,6 +284,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         return BlockstackCalendar(type, data, calendarId)
     }
 
+    @Suppress("FunctionName")
     private fun InvalidBlockstackCalendar(error: String): BlockstackCalendar {
         return BlockstackCalendar(null, JSONObject(), null, error)
     }
@@ -287,26 +292,26 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
     suspend fun fetchCalendars(syncResult: SyncResult): JSONArray? {
         try {
             if (mBlockstackSession.isUserSignedIn()) {
-                val calendars = suspendCoroutine<JSONArray> { cont ->
-                    val callback: (Result<Any>) -> Unit = {
-                        if (it.hasValue) {
-
-                            val calendarsAsString = it.value as String
+                val calendars =
+                    CoroutineScope(Dispatchers.IO).async {
+                        Log.d(
+                            SyncAdapter.javaClass.simpleName,
+                            mBlockstackSession.loadUserData().appPrivateKey
+                        )
+                        val result = mBlockstackSession.getFile("Calendars", GetFileOptions())
+                        if (result.hasValue) {
+                            val calendarsAsString = result.value as String
                             val calendars = JSONArray(calendarsAsString)
                             for (i in 0 until calendars.length()) {
                                 val calendar = calendars.getJSONObject(i)
                                 Log.d(TAG, calendar.toString())
                             }
-                            cont.resume(calendars)
+                            calendars
                         } else {
-                            Log.e(TAG, "Failed to fetch calendars: " + it.error)
-                            cont.resumeWithException(IOException(it.error?.message))
+                            Log.e(TAG, "Failed to fetch calendars: " + result.error)
+                            throw IOException(result.error?.message)
                         }
-                    }
-                    CoroutineScope(Dispatchers.IO).launch {
-                        mBlockstackSession.getFile("Calendars", GetFileOptions(), callback)
-                    }
-                }
+                    }.await()
                 Log.d(TAG, calendars.toString())
                 return calendars
             } else {
@@ -393,7 +398,8 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         }
 
         Log.i(TAG, "Fetching local entries for merge")
-        val uri = asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, account.name, account.type)
+        val uri =
+            asSyncAdapter(CalendarContract.Calendars.CONTENT_URI, account.name, account.type)
         val c = contentResolver.query(uri, CALENDAR_PROJECTION, null, null, null)!!
         Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
 
@@ -470,9 +476,14 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         // Add new items
         for (e in entryMap.values) {
             uid = e.getString("uid")
-            Log.i(TAG, "Scheduling insert: uid=" + uid + " " + e.optString("hexColor", "#000000"))
+            Log.i(
+                TAG,
+                "Scheduling insert: uid=" + uid + " " + e.optString("hexColor", "#000000")
+            )
 
 
+            val calendarType = e.getString("type")
+            val syncableType = "private" == calendarType
             batch.add(
                 ContentProviderOperation.newInsert(
                     asSyncAdapter(
@@ -483,7 +494,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                 )
                     .withValue(CalendarContract.Calendars._SYNC_ID, uid)
                     .withValue(CalendarContract.Calendars.CAL_SYNC1, uid)
-                    .withValue(CalendarContract.Calendars.CAL_SYNC2, e.getString("type"))
+                    .withValue(CalendarContract.Calendars.CAL_SYNC2, calendarType)
                     .withValue(
                         CalendarContract.Calendars.CAL_SYNC3,
                         e.getJSONObject("data").toString()
@@ -504,7 +515,13 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
                         CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
                         CalendarContract.Calendars.CAL_ACCESS_OWNER
                     )
-                    .withValue(CalendarContract.Calendars.VISIBLE, 1)
+                    .withValue(
+                        CalendarContract.Calendars.VISIBLE, if (syncableType) {
+                            1
+                        } else {
+                            0
+                        }
+                    )
                     .build()
             )
             syncResult.stats.numInserts++
@@ -518,6 +535,7 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
     }
 
 
+    @SuppressLint("MissingPermission")
     private suspend fun updateRemoteEvents(
         eventsResult: BlockstackEventList,
         account: Account,
@@ -564,15 +582,17 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
             eventUri =
                 CalendarContract.Events.CONTENT_URI.buildUpon().appendPath(eventID.toString())
                     .build()
-            syncId = curEvent.getString(curEvent.getColumnIndex(CalendarContract.Events._SYNC_ID))
+            syncId =
+                curEvent.getString(curEvent.getColumnIndex(CalendarContract.Events._SYNC_ID))
 
             var Deleted = false
             var intDeleted = 0
-            intDeleted = curEvent.getInt(curEvent.getColumnIndex(CalendarContract.Events.DELETED))
+            intDeleted =
+                curEvent.getInt(curEvent.getColumnIndex(CalendarContract.Events.DELETED))
             Deleted = intDeleted == 1
 
             if (syncId == null) {
-                val uid = java.util.UUID.randomUUID().toString()
+                val uid = UUID.randomUUID().toString()
 
                 if (blockstackEvents.createEvent(uid, event)) {
 
@@ -780,7 +800,10 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         var b: ContentProviderOperation
         for (e in entryMap.values) {
             uid = e.getString("uid")
-            Log.i(TAG, "Scheduling insert: uid=" + uid + " " + e.optString("title", "-no title-"))
+            Log.i(
+                TAG,
+                "Scheduling insert: uid=" + uid + " " + e.optString("title", "-no title-")
+            )
 
             b = newInsertEventOperation(newEventUri, uid, calendarId, e)
             batch.add(b)
@@ -849,7 +872,10 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
         if (match.optBoolean("reminderEnabled", false)) {
             val reminder = ContentValues()
             reminder.put(CalendarContract.Reminders.EVENT_ID, eventId)
-            reminder.put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+            reminder.put(
+                CalendarContract.Reminders.METHOD,
+                CalendarContract.Reminders.METHOD_ALERT
+            )
             val minutes = when (match.optString("reminderTimeUnit", "minutes")) {
                 "minutes" -> match.optInt("time", 10)
                 "hours" -> match.optInt("time", 1) * 60
@@ -999,7 +1025,13 @@ internal class SyncAdapter : AbstractThreadedSyncAdapter {
     @SuppressLint("MissingPermission")
     private fun logCalendars(contentResolver: ContentResolver) {
         Log.i(TAG, "Fetching local entries for merge")
-        val c = contentResolver.query(CalendarContract.Calendars.CONTENT_URI, CALENDAR_PROJECTION, null, null, null)!!
+        val c = contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            CALENDAR_PROJECTION,
+            null,
+            null,
+            null
+        )!!
         Log.i(TAG, "Found " + c.count + " local entries. Computing merge solution...")
 
         // Find stale data
